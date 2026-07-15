@@ -1,0 +1,88 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Design tokens — see PLAN.md "Design direction".
+   Concept: "the annotated file" — a warm paper canvas for the narrative, the
+   dark monospaced file itself always present (code panel, minimap).
+   The signed pair (--pos / --neg) is reserved for signed data everywhere.
+--------------------------------------------------------------------------- */
+:root {
+  --paper: #faf9f7;
+  --ink: #16181d;
+  --pos: #e8590c; /* vermilion — positive values in data viz */
+  --neg: #1971c2; /* cerulean — negative values; interactive affordances */
+  --hot: #ffc94d; /* amber — the "current" thing: active line, current token */
+  --muted: #6b7280;
+
+  --font-display: 'IBM Plex Serif', Georgia, serif;
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+@theme {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-hot: var(--hot);
+  --color-muted: var(--muted);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Wide figures scroll inside their own containers; the page itself never
+   scrolls horizontally. */
+body {
+  overflow-x: clip;
+}
+
+/* Narrative typography for chapter articles */
+.prose-custom {
+  font-size: 1.02rem;
+  line-height: 1.7;
+}
+.prose-custom p {
+  margin: 0.9em 0;
+  max-width: 42rem;
+}
+.prose-custom h2 {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin: 2.2em 0 0.6em;
+}
+.prose-custom h3 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 1.8em 0 0.5em;
+}
+.prose-custom code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  background: rgba(22, 24, 29, 0.06);
+  border-radius: 4px;
+  padding: 0.1em 0.35em;
+}
+.prose-custom a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

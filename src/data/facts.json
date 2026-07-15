@@ -1,0 +1,43 @@
+{
+ "numDocs": 32033,
+ "vocabSize": 27,
+ "numParams": 4192,
+ "numSteps": 1000,
+ "loss0": 3.3659669475848504,
+ "finalLossPython": 2.6496944697407585,
+ "finalLossTs": 2.6496945563084573,
+ "pythonTrainSec": 262.4,
+ "tsTrainMs": 383,
+ "samplesPython": [
+  "kamon",
+  "ann",
+  "karai",
+  "jaire",
+  "vialan",
+  "karia",
+  "yeran",
+  "anna",
+  "areli",
+  "kaina",
+  "konna",
+  "keylen",
+  "liole",
+  "alerin",
+  "earan",
+  "lenne",
+  "kana",
+  "lara",
+  "alela",
+  "anton"
+ ],
+ "docHead": [
+  "yuheng",
+  "diondre",
+  "xavien",
+  "jori",
+  "juanluis",
+  "erandi",
+  "phia",
+  "samatha"
+ ]
+}

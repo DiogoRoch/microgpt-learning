@@ -8,7 +8,7 @@ architecture through [Andrej Karpathy's microgpt](https://gist.github.com/karpat
 experience genuinely understands every line of `microgpt.py` — not vague intuition, the
 actual mechanics of this file.
 
-Source of truth: `reference/microgpt.py`, pinned at gist revision `14fb0388` (199 lines,
+Source of truth: `reference/microgpt.py`, pinned at gist revision `14fb0388` (200 lines,
 2026-02-16). The file outranks the brief; the brief outranks defaults.
 
 ## Interview answers / assumptions
@@ -37,9 +37,9 @@ As specified in the brief §5/§6, adopted without pushback except where noted:
 - Hand-rolled SVG/canvas viz; d3 only for scales/shape helpers.
 - Zustand for cross-chapter state (checkpoint, trained/untrained toggle, running example,
   chapter progress for the minimap).
-- KaTeX for math asides; Shiki for the code panel (dual: build-time highlight of the
-  full reference file + line-highlight API). *Note:* Shiki is used at build time /
-  module-init via a pre-generated highlight, keeping runtime payload small.
+- KaTeX for math asides. Code panel uses a hand-rolled, test-guarded Python
+  tokenizer instead of Shiki (decision + rationale in NOTES.md: one known 200-line
+  file, zero bundle cost, full control of line anatomy for sync/minimap).
 - Vitest for engine + parity tests. Web Worker for training/batch inference.
 - No backend; static build output.
 
@@ -124,7 +124,7 @@ your head; the design makes that literal. A calm, paper-like reading canvas carr
 narrative, and the file itself is always present as a dark, monospaced artifact — the
 code panel and the signature element:
 
-- **Signature element — the file as navigation.** A minimap of all 199 lines of
+- **Signature element — the file as navigation.** A minimap of all 200 lines of
   `microgpt.py` runs down the screen edge: each chapter's lines fill in as you complete
   it, hovering shows the code, clicking jumps to the chapter that teaches those lines.
   Finishing the course = watching the entire file light up. "You now understand this
@@ -161,14 +161,15 @@ questions. Running example threaded throughout: **emma**.
 Per brief §12. Each phase ends with `npm run typecheck && npm test && npm run build`
 green, dev-server exercise of the new work, and a conventional commit.
 
-- **Phase 0 — Foundations** ✅ when: golden dumps committed, tokenizer parity test passes.
-- **Phase 1 — Engines** ✅ when: full parity suite green, cross-engine agreement test,
-  measured training time in NOTES.md.
-- **Phase 2 — Shell** ✅ when: navigable skeleton with tokens/CodePanel/StepPlayer + 3–4
-  viz primitives on real golden data.
-- **Phase 3 — Chapters 0–2**, **Phase 4 — Chapters 3–7**, **Phase 5 — Chapters 8–11**
-  ✅ when: each chapter polished end-to-end against §4's four pillars.
-- **Phase 6 — Ship** ✅ when: perf + a11y pass, README, Pages workflow.
+- **Phase 0 — Foundations** ✅ done — golden dumps committed, tokenizer parity green.
+- **Phase 1 — Engines** ✅ done — full parity suite green, cross-engine agreement,
+  0.33 s measured training time.
+- **Phase 2 — Shell** ✅ done — navigable skeleton, minimap, CodePanel line-sync,
+  primitives on real golden data.
+- **Phase 3 — Chapters 0–2** ✅ · **Phase 4 — Chapters 3–7** ✅ ·
+  **Phase 5 — Chapters 8–11** ✅ — all twelve chapters live, four pillars self-reviewed
+  per phase (screenshots in docs/journal/).
+- **Phase 6 — Ship** ✅ done — perf + a11y + mobile pass, README, Pages workflow.
 
 ## Performance budget
 
