@@ -41,7 +41,13 @@ function sampleNames(count: number, temperature: number, rng: RNG): string[] {
   return names
 }
 
-async function train(untilStep: number, reportEvery: number, samplesPerReport: number, temperature: number) {
+async function train(
+  untilStep: number,
+  reportEvery: number,
+  samplesPerReport: number,
+  temperature: number,
+  paceMs: number,
+) {
   if (!model || !adam) {
     post({ type: 'error', message: 'train before init' })
     return
@@ -50,7 +56,8 @@ async function train(untilStep: number, reportEvery: number, samplesPerReport: n
   stopRequested = false
   const losses: number[] = []
   const t0 = performance.now()
-  const CHUNK = 10
+  const CHUNK = Math.max(1, Math.min(10, reportEvery))
+  let lastReported = losses.length
   while (step < untilStep) {
     const end = Math.min(step + CHUNK, untilStep)
     for (; step < end; step++) {
@@ -61,12 +68,14 @@ async function train(untilStep: number, reportEvery: number, samplesPerReport: n
           type: 'progress',
           step: step + 1,
           loss: losses[losses.length - 1]!,
+          lossesChunk: losses.slice(lastReported),
           samples: samplesPerReport > 0 ? sampleNames(samplesPerReport, temperature, new RNG(1000 + step)) : undefined,
         })
+        lastReported = losses.length
       }
     }
-    // Yield so a queued 'stop' can be handled between chunks.
-    await new Promise((r) => setTimeout(r, 0))
+    // Yield so a queued 'stop' can be handled between chunks (and pace for humans).
+    await new Promise((r) => setTimeout(r, paceMs))
     if (stopRequested) {
       training = false
       post({ type: 'stopped', step })
@@ -84,7 +93,8 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       init(msg.weights, msg.numSteps)
       break
     case 'train':
-      if (!training) void train(msg.untilStep, msg.reportEvery, msg.samplesPerReport ?? 0, msg.temperature ?? 0.5)
+      if (!training)
+        void train(msg.untilStep, msg.reportEvery, msg.samplesPerReport ?? 0, msg.temperature ?? 0.5, msg.paceMs ?? 0)
       break
     case 'stop':
       stopRequested = true

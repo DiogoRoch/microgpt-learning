@@ -20,6 +20,8 @@ export type WorkerRequest =
       /** Sample a few names at each report (shows babble → names). */
       samplesPerReport?: number
       temperature?: number
+      /** ms to sleep between chunks — pacing so humans can watch (0 = flat out) */
+      paceMs?: number
     }
   | { type: 'stop' }
   | { type: 'sample'; count: number; temperature: number; seed: number }
@@ -27,7 +29,7 @@ export type WorkerRequest =
 
 export type WorkerResponse =
   | { type: 'ready'; numParams: number; step: number }
-  | { type: 'progress'; step: number; loss: number; samples?: string[] }
+  | { type: 'progress'; step: number; loss: number; lossesChunk: number[]; samples?: string[] }
   | { type: 'stopped'; step: number }
   | { type: 'trained'; step: number; elapsedMs: number; losses: number[] }
   | { type: 'samples'; names: string[] }

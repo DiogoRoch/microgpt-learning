@@ -114,3 +114,27 @@ Newest entries first within each phase.
 - **Ch3 treemap** rotates labels on narrow blocks (attention 256-cell matrices).
 - All five chapters: hook → interactive core → exact-lines CodePanel sync → recap +
   3 PredictReveals, per the brief's chapter contract.
+
+## Phase 5 — Chapters 8–11
+
+- **Screenshots:** docs/journal/phase5-ch{8,9-live,10,11}.png. The ch9 screenshot is
+  from an automated Playwright run that actually clicked "train" — captured mid-proof.
+- **Live training verified in a real browser:** 1000 steps in 1.41 s (dev mode,
+  flat-out pace) inside Chromium via the worker. A "watchable" pace (~20 s) is the
+  default so the curve draws itself and samples visibly evolve (step 5:
+  "kvirqguvkqhdckuh" → step 1000: "kana, canan, cedela"). tools/test_training.mjs
+  automates this check.
+- **Worker protocol grew paceMs + lossesChunk** so progress messages carry the full
+  loss segment (smooth curve, no stair-steps) and humans can watch a run that would
+  otherwise finish in a blink.
+- **Ch8 shows the real optimizer numbers**: grad/m/v/m̂/lr_t/updated-p for selected
+  real parameters across golden steps 0–2, including a parameter whose grad is 0 at
+  step 0 (the 'a' embedding — absent from "yuheng"). The gradient-field heatmaps make
+  the 464 zero-grads visibly structural (unused wte/wpe rows), not numerical.
+- **Ch10's novelty check** marks generated names against the full 32,033-name set —
+  typically ~2/3 genuinely invented at T=0.5, and the copy explains why collisions
+  aren't memorization (each name seen ≤ once).
+- **Ch11 playground**: any prefix, any snapshot (LossCurve doubles as checkpoint
+  scrubber), toggleable stage chips for every named intermediate, 4-head attention
+  grid, name-list export via Blob download, and the full annotated file as the
+  closing screen with a conquered-lines counter.

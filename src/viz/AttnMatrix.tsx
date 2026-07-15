@@ -17,9 +17,11 @@ export interface AttnMatrixProps {
   /** row highlighted as "current" */
   activeRow?: number | null
   showValues?: boolean
+  /** hide the caption line (dense grids provide their own labels) */
+  caption?: boolean
 }
 
-export function AttnMatrix({ weights, tokens, cellSize = 30, uptoRow, activeRow, showValues = false }: AttnMatrixProps) {
+export function AttnMatrix({ weights, tokens, cellSize = 30, uptoRow, activeRow, showValues = false, caption = true }: AttnMatrixProps) {
   const [hover, setHover] = useState<[number, number] | null>(null)
   const T = uptoRow != null ? Math.min(uptoRow + 1, weights.length) : weights.length
   const n = weights.length
@@ -93,11 +95,13 @@ export function AttnMatrix({ weights, tokens, cellSize = 30, uptoRow, activeRow,
         {labels}
         {cells}
       </svg>
-      <figcaption className="mt-1 h-4 font-mono text-[11px] text-muted">
-        {hover
-          ? `attn_weights: query '${tokens[hover[0]]}' (pos ${hover[0]}) → key '${tokens[hover[1]]}' (pos ${hover[1]}) = ${fmt(weights[hover[0]]![hover[1]] as number)}`
-          : 'row = query position · columns = keys that existed at that moment'}
-      </figcaption>
+      {caption && (
+        <figcaption className="mt-1 h-4 font-mono text-[11px] text-muted">
+          {hover
+            ? `attn_weights: query '${tokens[hover[0]]}' (pos ${hover[0]}) → key '${tokens[hover[1]]}' (pos ${hover[1]}) = ${fmt(weights[hover[0]]![hover[1]] as number)}`
+            : 'row = query position · columns = keys that existed at that moment'}
+        </figcaption>
+      )}
     </figure>
   )
 }
