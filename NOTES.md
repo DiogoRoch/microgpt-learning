@@ -51,3 +51,22 @@ Newest entries first within each phase.
   browser's run" on "the file's run" — honest numbers, no hand-waving.
 - **Worker protocol** supports golden-init replay ("the exact run the file does") and
   fresh seeded inits; chunked loop yields every 10 steps so stop messages land.
+
+## Phase 2 — Shell
+
+- **Screenshots:** docs/journal/phase2-home.png (chapter frame, minimap, code panel),
+  docs/journal/phase2-gallery.png (all primitives on real golden data + live code sync).
+- **Custom highlighter instead of Shiki** (brief said push back with reasons): we render
+  ONE known 200-line file; a 90-line tokenizer gives zero bundle cost and full control
+  over line anatomy for sync/minimap. Two tests guard it: verbatim reconstruction of
+  the file from tokens, and pinned classifications of known lines.
+- **The file is 200 lines, not 199** — `wc -l` says 199 because the last line has no
+  trailing newline. TOTAL_LINES = 200 everywhere; a test asserts it.
+- **File map invariants tested:** every non-blank line has exactly one owning chapter,
+  ranges never overlap, all 12 slugs unique. The minimap is generated from the real
+  source (indentation + line length drawn per line), so it *is* the file.
+- **Minimap placed left** (book-spine metaphor); code panel right and sticky; the
+  narrative column between them. Below xl, the code panel hides (chapters keep inline
+  excerpts; mobile pass comes in Phase 6).
+- **BrowserRouter + configurable base** (VITE_BASE) for GitHub Pages; deploy workflow
+  will copy index.html → 404.html for SPA fallback.
