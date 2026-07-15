@@ -41,6 +41,17 @@ npm run lint                    # eslint
 - If `tools/fetch_reference.sh`'s pinned revision is bumped: regenerate golden/, run the
   full parity suite, and re-read the diff of the reference file before anything else.
 
+## GitHub automation (Claude Code Action)
+
+- Runs triggered by `@claude` (see `.github/workflows/claude.yml`) use **Opus 4.8** and
+  allow the project's build/verify tooling (`npm`, `npx`, `node`, `python3`) plus the
+  `gh` CLI — so verify your change (typecheck, lint, relevant tests/screenshots) before
+  wrapping up, rather than reporting it unverified.
+- When work is triggered from a GitHub issue or comment, **finish by opening a pull
+  request** against `main` with `gh pr create` (branch → push → open PR). Don't stop at a
+  compare link — the workflow grants `contents`/`pull-requests`/`issues` write for exactly
+  this. Use a conventional-commit title and reference the issue (e.g. `Closes #N`).
+
 ## Gotchas discovered so far
 
 - This build environment's egress proxy blocks `gist.githubusercontent.com` but allows

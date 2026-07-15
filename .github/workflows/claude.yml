@@ -19,9 +19,9 @@ jobs:
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      pull-requests: read
-      issues: read
+      contents: write # push branches so Claude can open PRs
+      pull-requests: write # open/update pull requests
+      issues: write # comment on the triggering issue
       id-token: write
       actions: read # Required for Claude to read CI results on PRs
     steps:
@@ -43,8 +43,12 @@ jobs:
           # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
           # prompt: 'Update the pull request description to include a summary of changes.'
 
-          # Optional: Add claude_args to customize behavior and configuration
+          # Run on Opus 4.8, and allow the project's build/verify tooling
+          # (npm typecheck/lint/test/build/dev, node screenshot scripts, python golden dumps)
+          # so Claude can verify its changes instead of being blocked on tool approval.
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
-          # claude_args: '--allowed-tools Bash(gh pr *)'
+          claude_args: |
+            --model claude-opus-4-8
+            --allowedTools "Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python3:*),Bash(gh:*)"
 
