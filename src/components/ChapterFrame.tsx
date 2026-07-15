@@ -9,6 +9,7 @@ import { useAppStore } from '../app/store.ts'
 import { CodePanel } from './CodePanel.tsx'
 import { CodeSyncProvider } from './CodeSync.tsx'
 import { Minimap } from './Minimap.tsx'
+import { QuizProvider } from './Quiz.tsx'
 
 export function ChapterFrame({
   chapter, children, hideCodePanel = false,
@@ -24,6 +25,7 @@ export function ChapterFrame({
 
   return (
     <CodeSyncProvider key={chapter.id}>
+      <QuizProvider chapterId={chapter.id}>
       <div className="mx-auto flex max-w-[1500px] gap-6 px-4 py-6 md:px-8">
         <Minimap currentChapter={chapter.id} />
         <div className="min-w-0 flex-1">
@@ -77,6 +79,7 @@ export function ChapterFrame({
           </nav>
         </div>
       </div>
+      </QuizProvider>
     </CodeSyncProvider>
   )
 }

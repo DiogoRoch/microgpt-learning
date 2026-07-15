@@ -6,6 +6,10 @@ export default tseslint.config(
   eslint.configs.recommended,
   ...tseslint.configs.recommended,
   {
+    files: ['tools/**/*.mjs'],
+    languageOptions: { globals: { process: 'readonly', console: 'readonly' } },
+  },
+  {
     rules: {
       // Engine code passes Float32Arrays and readonly tuples around; these two
       // defaults produce more noise than signal there.

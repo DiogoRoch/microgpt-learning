@@ -132,3 +132,21 @@ const run = {
 writeFileSync(join(dataDir, 'run.json'), JSON.stringify(run))
 const sizeKB = Math.round(Buffer.byteLength(JSON.stringify(run)) / 1024)
 console.log(`run.json written: ${sizeKB} KB (${snapshots.length} snapshots)`)
+
+// Small facts payload for light-weight chapters (landing page etc.) so they
+// don't have to import the heavy artifacts.
+const facts = {
+  numDocs: docsGolden.num_docs,
+  vocabSize: tokenizerGolden.vocab_size,
+  numParams: model.numParams,
+  numSteps: NUM_STEPS,
+  loss0: lossesGolden.losses[0]!,
+  finalLossPython: finalGolden.final_loss,
+  finalLossTs: losses[NUM_STEPS - 1]!,
+  pythonTrainSec: 262.4,
+  tsTrainMs: Math.round(trainMs),
+  samplesPython: finalGolden.samples,
+  docHead: docsGolden.head.slice(0, 8),
+}
+writeFileSync(join(dataDir, 'facts.json'), JSON.stringify(facts, null, 1))
+console.log('facts.json written')

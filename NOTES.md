@@ -70,3 +70,26 @@ Newest entries first within each phase.
   excerpts; mobile pass comes in Phase 6).
 - **BrowserRouter + configurable base** (VITE_BASE) for GitHub Pages; deploy workflow
   will copy index.html → 404.html for SPA fallback.
+
+## Phase 3 — Chapters 0–2
+
+- **Screenshots:** docs/journal/phase3-ch{0,1,2}.png.
+- **Four-pillar self-review:** (1) real numbers — ch0 cards read facts.json from the
+  golden run, ch1 builds the vocab live from all 32,033 names with the file's exact
+  recipe, ch2 runs the actual scalar engine; (2) code-sync — flow-map hover, vocab
+  hover, and the backward stepper drive the panel (line 69 on seed, 70–72 while
+  stepping, op lines on node hover); (3) manipulable — round-trip input feeds the
+  global running example, expression sandbox differentiates arbitrary input;
+  (4) layered depth — math aside derives the chain rule, wild asides bridge BPE and
+  PyTorch.
+- **Completion = quizzes.** A chapter auto-completes when all its PredictReveals are
+  revealed (QuizProvider tracks qids); Recap offers a manual fallback when a chapter
+  has no quizzes. Progress persists in localStorage and lights the minimap.
+- **Sandbox parser** builds graphs through the engine's own desugaring ops so division
+  really creates a pow node, unary minus really multiplies by −1 — the sandbox can't
+  drift from Value semantics. Parser has its own test file (7 tests).
+- **GraphView never mutates nodes**: backward stepping uses partialGrads() into a Map,
+  so scrubbing back and forth is pure. planBackward() skips leaf no-ops so every step
+  shown does real work.
+- **facts.json** (tiny) added for light chapters; heavy artifacts (names.json 250 KB,
+  run.json 916 KB) only load inside the routes that teach them.
