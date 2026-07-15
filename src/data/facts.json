@@ -7,7 +7,7 @@
  "finalLossPython": 2.6496944697407585,
  "finalLossTs": 2.6496945563084573,
  "pythonTrainSec": 262.4,
- "tsTrainMs": 361,
+ "tsTrainMs": 383,
  "samplesPython": [
   "kamon",
   "ann",

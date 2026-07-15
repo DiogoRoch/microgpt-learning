@@ -38,6 +38,12 @@ html {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Wide figures scroll inside their own containers; the page itself never
+   scrolls horizontally. */
+body {
+  overflow-x: clip;
+}
+
 /* Narrative typography for chapter articles */
 .prose-custom {
   font-size: 1.02rem;

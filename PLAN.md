@@ -161,14 +161,15 @@ questions. Running example threaded throughout: **emma**.
 Per brief §12. Each phase ends with `npm run typecheck && npm test && npm run build`
 green, dev-server exercise of the new work, and a conventional commit.
 
-- **Phase 0 — Foundations** ✅ when: golden dumps committed, tokenizer parity test passes.
-- **Phase 1 — Engines** ✅ when: full parity suite green, cross-engine agreement test,
-  measured training time in NOTES.md.
-- **Phase 2 — Shell** ✅ when: navigable skeleton with tokens/CodePanel/StepPlayer + 3–4
-  viz primitives on real golden data.
-- **Phase 3 — Chapters 0–2**, **Phase 4 — Chapters 3–7**, **Phase 5 — Chapters 8–11**
-  ✅ when: each chapter polished end-to-end against §4's four pillars.
-- **Phase 6 — Ship** ✅ when: perf + a11y pass, README, Pages workflow.
+- **Phase 0 — Foundations** ✅ done — golden dumps committed, tokenizer parity green.
+- **Phase 1 — Engines** ✅ done — full parity suite green, cross-engine agreement,
+  0.33 s measured training time.
+- **Phase 2 — Shell** ✅ done — navigable skeleton, minimap, CodePanel line-sync,
+  primitives on real golden data.
+- **Phase 3 — Chapters 0–2** ✅ · **Phase 4 — Chapters 3–7** ✅ ·
+  **Phase 5 — Chapters 8–11** ✅ — all twelve chapters live, four pillars self-reviewed
+  per phase (screenshots in docs/journal/).
+- **Phase 6 — Ship** ✅ done — perf + a11y + mobile pass, README, Pages workflow.
 
 ## Performance budget
 

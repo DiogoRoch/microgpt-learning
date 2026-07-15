@@ -63,7 +63,7 @@ export function CodePanel({ ranges, highlight, compact = false, title, maxHeight
           href={GIST_URL}
           target="_blank"
           rel="noreferrer"
-          className="font-mono text-[11px] text-white/40 underline-offset-2 hover:text-white/80 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--hot)]"
+          className="font-mono text-[11px] text-white/60 underline-offset-2 hover:text-white/90 hover:underline focus-visible:outline-2 focus-visible:outline-[var(--hot)]"
         >
           @karpathy&apos;s gist ↗
         </a>

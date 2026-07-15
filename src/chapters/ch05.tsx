@@ -202,6 +202,7 @@ function MaskEquivalence({ trace }: { trace: ExampleTrace }) {
           ))}
         </select>
       </div>
+      <div className="overflow-x-auto">
       <svg
         width={pad + n * cell}
         height={pad + n * cell}
@@ -258,6 +259,7 @@ function MaskEquivalence({ trace }: { trace: ExampleTrace }) {
           }),
         )}
       </svg>
+      </div>
       <p className="max-w-xl text-sm text-muted">
         {mode === 'incremental' ? (
           <>
@@ -303,7 +305,7 @@ function FreePlay() {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         {HEAD_NAMES.map((name, h) => (
-          <div key={h}>
+          <div key={h} className="overflow-x-auto">
             <div className="mb-1 font-mono text-xs text-muted">{name}</div>
             <AttnMatrix
               weights={trace.calls.map((c) => c.layers[0]!.heads[h]!.attn_weights)}

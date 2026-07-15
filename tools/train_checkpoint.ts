@@ -150,3 +150,54 @@ const facts = {
 }
 writeFileSync(join(dataDir, 'facts.json'), JSON.stringify(facts, null, 1))
 console.log('facts.json written')
+
+// Slim chapter-8 payload derived from the golden dumps: the full step-0
+// gradient field (rounded to 6 significant digits — display is 5) plus the
+// complete optimizer record of a few featured real parameters across steps
+// 0–2. Full precision stays in golden/ where the tests read it.
+interface GoldenStep {
+  step: number
+  doc: string
+  n: number
+  loss: number
+  lr_t: number
+  grads: number[]
+  m: number[]
+  v: number[]
+  params: number[]
+}
+const steps: GoldenStep[] = [0, 1, 2].map((k) => readJSON<GoldenStep>(join(goldenDir, `step${k}_state.json`)))
+const initFlat: number[] = []
+for (const key of Object.keys(initWeights)) for (const row of initWeights[key]!) initFlat.push(...row)
+const r6 = (x: number) => Number(x.toPrecision(6))
+const uch = tokenizerGolden.uchars
+const FEATURED = [
+  { label: `wte['y'][0] — used at step 0`, idx: uch.indexOf('y') * 16 },
+  { label: `wte['a'][0] — absent from "${steps[0]!.doc}"`, idx: uch.indexOf('a') * 16 },
+  { label: `lm_head['a'][0] — blamed at every position`, idx: (27 + 16) * 16 + uch.indexOf('a') * 16 },
+  { label: `mlp_fc1[0][0]`, idx: (27 + 16 + 27 + 16 * 4) * 16 },
+]
+const adamSteps = {
+  featured: FEATURED.map((f) => ({
+    label: f.label,
+    init: r6(initFlat[f.idx]!),
+    steps: steps.map((st, k) => ({
+      step: k,
+      doc: st.doc,
+      grad: r6(st.grads[f.idx]!),
+      m: r6(st.m[f.idx]!),
+      v: Number(st.v[f.idx]!.toPrecision(4)),
+      lr_t: st.lr_t,
+      param: r6(st.params[f.idx]!),
+    })),
+  })),
+  step0: {
+    doc: steps[0]!.doc,
+    n: steps[0]!.n,
+    loss: r6(steps[0]!.loss),
+    grads: steps[0]!.grads.map(r6),
+    nonzero: steps[0]!.grads.filter((g) => g !== 0).length,
+  },
+}
+writeFileSync(join(dataDir, 'adam_steps.json'), JSON.stringify(adamSteps))
+console.log(`adam_steps.json written (${Math.round(Buffer.byteLength(JSON.stringify(adamSteps)) / 1024)} KB)`)

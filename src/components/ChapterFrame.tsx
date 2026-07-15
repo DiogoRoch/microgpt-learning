@@ -41,15 +41,21 @@ export function ChapterFrame({
           <div
             className={
               hideCodePanel
-                ? 'max-w-3xl'
-                : 'grid items-start gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(360px,44%)]'
+                ? 'max-w-5xl'
+                : 'grid grid-cols-[minmax(0,1fr)] items-start gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(360px,44%)]'
             }
           >
             <article className="prose-custom min-w-0">{children}</article>
             {!hideCodePanel && (
-              <aside className="sticky top-6 hidden xl:block">
-                <CodePanel ranges={chapter.lines.length ? chapter.lines : undefined} />
-              </aside>
+              <>
+                <aside className="sticky top-6 hidden xl:block">
+                  <CodePanel ranges={chapter.lines.length ? chapter.lines : undefined} />
+                </aside>
+                {/* below xl the panel follows the article instead of floating beside it */}
+                <div className="mt-10 xl:hidden">
+                  <CodePanel ranges={chapter.lines.length ? chapter.lines : undefined} maxHeight="50vh" />
+                </div>
+              </>
             )}
           </div>
 

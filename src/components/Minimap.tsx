@@ -36,6 +36,8 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
         className="rounded"
         style={{ background: 'var(--ink)' }}
         onMouseLeave={() => setHoverLine(null)}
+        role="img"
+        aria-label={`minimap of microgpt.py — ${completed.length} of 12 chapters complete`}
       >
         {SOURCE_LINES.map((line, i) => {
           const lineNo = i + 1
@@ -57,7 +59,8 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
             />
           )
         })}
-        {/* hover + click layer: one hit area per line */}
+        {/* hover + click layer (mouse convenience only — the header chapter nav is
+            the keyboard-accessible route to the same destinations) */}
         {SOURCE_LINES.map((_, i) => {
           const lineNo = i + 1
           return (

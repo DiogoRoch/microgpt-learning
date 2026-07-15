@@ -15,11 +15,10 @@ import { useCodeSync } from '../components/CodeSync.tsx'
 import { MatrixHeatmap } from '../viz/MatrixHeatmap.tsx'
 import { fmt } from '../viz/color.ts'
 import { stateDictKeys } from '../engine/model_scalar.ts'
-import step0State from '../../golden/step0_state.json'
-import step1State from '../../golden/step1_state.json'
-import step2State from '../../golden/step2_state.json'
-import initWeights from '../../golden/init_weights.json'
+import adamSteps from '../data/adam_steps.json'
 import tokenizerGolden from '../../golden/tokenizer.json'
+
+const step0 = adamSteps.step0
 
 const SHAPES: Record<string, [number, number]> = {
   wte: [27, 16], wpe: [16, 16], lm_head: [27, 16],
@@ -45,8 +44,7 @@ function GradField() {
   const [key, setKey] = useState('wte')
   const { setHighlight } = useCodeSync()
   const [rows, cols] = SHAPES[key]!
-  const grads = useMemo(() => step0State.grads.slice(OFFSETS[key]!, OFFSETS[key]! + rows * cols), [key, rows, cols])
-  const nonzero = useMemo(() => step0State.grads.filter((g) => g !== 0).length, [])
+  const grads = useMemo(() => step0.grads.slice(OFFSETS[key]!, OFFSETS[key]! + rows * cols), [key, rows, cols])
   return (
     <div className="not-prose my-4 space-y-3" onMouseEnter={() => setHighlight([171, 172])}>
       <div className="flex flex-wrap items-center gap-2">
@@ -63,8 +61,8 @@ function GradField() {
           ))}
         </select>
         <span className="font-mono text-xs text-muted">
-          ∂loss/∂{key} after step 0&apos;s backward() on &quot;{step0State.doc}&quot; —{' '}
-          {nonzero.toLocaleString()} of 4,192 grads are nonzero
+          ∂loss/∂{key} after step 0&apos;s backward() on &quot;{step0.doc}&quot; —{' '}
+          {step0.nonzero.toLocaleString()} of 4,192 grads are nonzero
         </span>
       </div>
       <MatrixHeatmap
@@ -78,8 +76,8 @@ function GradField() {
       />
       {key === 'wte' && (
         <p className="max-w-xl text-sm text-muted">
-          Entire rows are exactly zero: &quot;{step0State.doc}&quot; contains only{' '}
-          {[...new Set(step0State.doc)].sort().map((c) => `'${c}'`).join(', ')} (+BOS), so
+          Entire rows are exactly zero: &quot;{step0.doc}&quot; contains only{' '}
+          {[...new Set(step0.doc)].sort().map((c) => `'${c}'`).join(', ')} (+BOS), so
           only those embeddings took part in the forward pass — no participation, no
           gradient. Compare <code>lm_head</code>: every row is nonzero, because softmax
           spreads a little probability (and therefore a little blame) over all 27 tokens
@@ -88,7 +86,7 @@ function GradField() {
       )}
       {key === 'wpe' && (
         <p className="max-w-xl text-sm text-muted">
-          Rows 7–15 are exactly zero: &quot;{step0State.doc}&quot; has n = {step0State.n}{' '}
+          Rows 7–15 are exactly zero: &quot;{step0.doc}&quot; has n = {step0.n}{' '}
           positions, so later position embeddings never entered the graph.
         </p>
       )}
@@ -99,24 +97,8 @@ function GradField() {
 /** The real optimizer numbers for one real parameter across golden steps 0–2. */
 function AdamInspector() {
   const { setHighlight } = useCodeSync()
-  const PARAMS = useMemo(() => {
-    const yIdx = uchars.indexOf('y')
-    const aIdx = uchars.indexOf('a')
-    return [
-      { label: `wte['y'][0] — used at step 0`, idx: OFFSETS['wte']! + yIdx * 16 },
-      { label: `wte['a'][0] — absent from "${step0State.doc}"`, idx: OFFSETS['wte']! + aIdx * 16 },
-      { label: `lm_head['a'][0] — blamed at every position`, idx: OFFSETS['lm_head']! + aIdx * 16 },
-      { label: `mlp_fc1[0][0]`, idx: OFFSETS['layer0.mlp_fc1']! },
-    ]
-  }, [])
   const [sel, setSel] = useState(0)
-  const idx = PARAMS[sel]!.idx
-  const states = [step0State, step1State, step2State]
-  const initFlat = useMemo(() => {
-    const flat: number[] = []
-    for (const key of stateDictKeys(1)) for (const row of (initWeights as Record<string, number[][]>)[key]!) flat.push(...row)
-    return flat
-  }, [])
+  const featured = adamSteps.featured[sel]!
 
   return (
     <div className="not-prose my-4 space-y-2" onMouseEnter={() => setHighlight([174, 175, 176, 177, 178, 179, 180, 181, 182])}>
@@ -126,7 +108,7 @@ function AdamInspector() {
         className="rounded border border-ink/20 bg-white px-2 py-1 font-mono text-xs"
         aria-label="which real parameter to inspect"
       >
-        {PARAMS.map((p, i) => (
+        {adamSteps.featured.map((p, i) => (
           <option key={i} value={i}>
             {p.label}
           </option>
@@ -141,29 +123,29 @@ function AdamInspector() {
               <th className="py-1 pr-3">grad</th>
               <th className="py-1 pr-3">m</th>
               <th className="py-1 pr-3">v</th>
-              <th className="py-1 pr-3">m̂ (corrected)</th>
+              <th className="py-1 pr-3">m&#x302; (corrected)</th>
               <th className="py-1 pr-3">lr_t</th>
               <th className="py-1 pr-3">p after update</th>
             </tr>
           </thead>
           <tbody>
-            {states.map((st, k) => {
-              const mHat = st.m[idx]! / (1 - 0.85 ** (k + 1))
-              const prev = k === 0 ? initFlat[idx]! : states[k - 1]!.params[idx]!
+            {featured.steps.map((st, k) => {
+              const mHat = st.m / (1 - 0.85 ** (k + 1))
+              const prev = k === 0 ? featured.init : featured.steps[k - 1]!.param
               return (
                 <tr key={k} className="border-b border-ink/10">
                   <td className="py-1 pr-3">{k}</td>
                   <td className="py-1 pr-3">{st.doc}</td>
-                  <td className="py-1 pr-3">{fmt(st.grads[idx]!, 5)}</td>
-                  <td className="py-1 pr-3">{fmt(st.m[idx]!, 5)}</td>
-                  <td className="py-1 pr-3">{st.v[idx]!.toExponential(2)}</td>
+                  <td className="py-1 pr-3">{fmt(st.grad, 5)}</td>
+                  <td className="py-1 pr-3">{fmt(st.m, 5)}</td>
+                  <td className="py-1 pr-3">{st.v.toExponential(2)}</td>
                   <td className="py-1 pr-3" style={{ color: 'var(--neg)' }}>
                     {fmt(mHat, 5)}
                   </td>
                   <td className="py-1 pr-3">{st.lr_t.toFixed(5)}</td>
                   <td className="py-1 pr-3">
-                    {fmt(st.params[idx]!, 5)}{' '}
-                    <span className="text-muted">({st.params[idx]! - prev >= 0 ? '+' : ''}{fmt(st.params[idx]! - prev, 5)})</span>
+                    {fmt(st.param, 5)}{' '}
+                    <span className="text-muted">({st.param - prev >= 0 ? '+' : ''}{fmt(st.param - prev, 5)})</span>
                   </td>
                 </tr>
               )

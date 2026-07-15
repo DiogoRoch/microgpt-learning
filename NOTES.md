@@ -138,3 +138,30 @@ Newest entries first within each phase.
   scrubber), toggleable stage chips for every named intermediate, 4-head attention
   grid, name-list export via Blob download, and the full annotated file as the
   closing screen with a conquered-lines counter.
+
+## Phase 6 — Ship
+
+- **Perf pass.** Landing page ships ~61 KB gz JS + 7 KB CSS + fonts; heavy data is
+  route-lazy: run.json (676 KB gz — base64 f32 resists compression; 41 snapshots is
+  the honest budget for full time-travel, within the brief's 1.5 MB data target),
+  names (108 KB gz, ch1/ch10 only), KaTeX (78 KB gz + fonts, math chapters only).
+  Ch8's ~1 MB of golden step files was replaced by a 44 KB derived payload
+  (adam_steps.json: step-0 grads at 6 s.f. + featured-param optimizer records) —
+  full precision remains in golden/ for the tests.
+- **Prod-build verification:** tools/test_training.mjs against `vite preview` —
+  1000 live steps in 1.57 s in Chromium, no page errors.
+- **Mobile pass.** Root cause of overflow: below xl the chapter grid's implicit
+  column sized to max-content. Fixed with an explicit minmax(0,1fr) base track,
+  overflow-x-auto wrappers on the wide SVGs (mask-equivalence, free-play grids), and
+  body overflow-x: clip as a backstop. Code panel now follows the article below xl
+  (50 vh, own scroll) instead of disappearing.
+- **A11y pass.** Skip link; header/main/footer landmarks; focus-visible amber
+  outlines throughout; PredictReveal options are a radiogroup; steppers accept
+  ←/→/space with reduced-motion hiding autoplay; every SVG has role=img + aria-label;
+  the minimap is aria-labeled with progress and its 200 hover targets stay
+  mouse-only because the header chapter nav is the keyboard-equivalent route;
+  gist-link contrast bumped. Live-training progress is textual (step counter +
+  samples), not color-only.
+- **Deploy:** .github/workflows/deploy.yml — npm ci → test (fetches the pinned
+  reference) → build with VITE_BASE=/<repo>/ → 404.html SPA fallback → Pages.
+  README documents setup, commands, architecture, parity story, attribution.

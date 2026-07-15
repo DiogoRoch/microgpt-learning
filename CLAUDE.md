@@ -52,3 +52,10 @@ npm run lint                    # eslint
 - Python `sum()` over `Value`s wraps the int 0 via `__radd__`; softmax's max-subtraction
   uses raw `.data` (no gradient through max). Mirror exactly — see PLAN.md "Engine
   semantics".
+
+## Verification helpers
+
+- `node tools/screenshot.mjs <path> <out.png> [w] [h]` — screenshot a route of the dev
+  server (port 5199) and fail on console errors.
+- `node tools/test_training.mjs <out.png>` — drives chapter 9's real train button in
+  Chromium and asserts the 1000-step run completes.
