@@ -398,7 +398,7 @@ export default function Ch05() {
         answerIndex={0}
         explanation={
           <>
-            One key exists, so softmax runs over a single logit: e&#x2E31;/e&#x2E31; = 1,
+            One key exists, so softmax runs over a single logit: e^z / e^z = 1,
             whatever the logit&apos;s value. The parameters are irrelevant. This is
             pinned as an engine test in this app — and you can verify it by scrubbing the
             stepper to pos 0.

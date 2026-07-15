@@ -165,3 +165,17 @@ Newest entries first within each phase.
 - **Deploy:** .github/workflows/deploy.yml — npm ci → test (fetches the pinned
   reference) → build with VITE_BASE=/<repo>/ → 404.html SPA fallback → Pages.
   README documents setup, commands, architecture, parity story, attribution.
+
+## Post-ship fidelity review
+
+- Inline self-review (the multi-agent workflow tool couldn't get a permission prompt
+  in this session): re-verified every setHighlight/line-range reference against the
+  actual file; recomputed the 464 zero-grad decomposition (20 unused wte rows ×16 +
+  9 unused wpe rows ×16), the AdamPlayground derivative, the featured-param flat
+  offsets (lm_head 'a' = 688, mlp_fc1[0][0] = 2144), the ch10 entropy formula, and
+  ln-vocab claims. Tensor backward formulas re-derived on paper and already pinned by
+  parity tests.
+- Two defects found and fixed: PLAN.md still said "199 lines" (it's 200 — no trailing
+  newline fooled wc) and still described Shiki though the code panel ships the custom
+  test-guarded highlighter; ch5's pos-0 explanation used an obscure HTML entity where
+  it meant "e^z / e^z = 1".
