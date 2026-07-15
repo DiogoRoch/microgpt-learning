@@ -1,0 +1,15 @@
+# The reference file is fetched, not committed (gist has no license; we link and attribute).
+# Run tools/fetch_reference.sh to populate it.
+reference/
+
+# The names dataset, downloaded by tools/golden.py exactly as microgpt.py does.
+input.txt
+
+# Node / build
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Local scratch
+.DS_Store
+*.log
