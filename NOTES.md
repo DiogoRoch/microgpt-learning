@@ -93,3 +93,24 @@ Newest entries first within each phase.
   shown does real work.
 - **facts.json** (tiny) added for light chapters; heavy artifacts (names.json 250 KB,
   run.json 916 KB) only load inside the routes that teach them.
+
+## Phase 4 — Chapters 3–7
+
+- **Screenshots:** docs/journal/phase4-ch{3,4,5,6,7}.png.
+- **Live-model plumbing:** useModel.ts caches Models per snapshot; useTrace(word, step)
+  re-runs the real f32 engine on the user's example on every render-relevant change
+  (a full traced forward is ~microseconds). CompareToggle flips the app-wide
+  checkpoint (store.checkpointStep) so every viz in a chapter re-renders from the
+  other weights.
+- **Ch4's perturbation lab** clones the model via flatParams → edit one wte cell →
+  Model.fromFlat → full re-trace. The per-position Σ|Δp| ripple bar makes causality
+  visible (positions before the edit are exactly 0) — deliberately foreshadows ch5.
+- **Ch5 mask-equivalence** renders the SAME trace numbers in both framings; the
+  "textbook" upper triangle is drawn as −∞ cells over numbers that were never
+  computed. Copy stresses inference-form vs batched-training-form.
+- **Honest-numbers moment:** the trained model shows 63/64 dead ReLU neurons at BOS
+  pos 0 in ch6 — real trace data, kept (with the dead-neuron count computed live)
+  rather than smoothed over.
+- **Ch3 treemap** rotates labels on narrow blocks (attention 256-cell matrices).
+- All five chapters: hook → interactive core → exact-lines CodePanel sync → recap +
+  3 PredictReveals, per the brief's chapter contract.
