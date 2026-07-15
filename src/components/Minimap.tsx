@@ -20,7 +20,8 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
   const W = 36
   const height = TOTAL_LINES * H
 
-  const hoverChapter = hoverLine != null && owners[hoverLine]! >= 0 ? CHAPTERS[owners[hoverLine]!] : null
+  const hoverChapterId = hoverLine != null ? owners[hoverLine]! : -1
+  const hoverChapter = hoverChapterId >= 0 ? CHAPTERS[hoverChapterId]! : null
 
   return (
     <nav aria-label="microgpt.py minimap navigation" className="sticky top-6 hidden lg:block">
@@ -39,14 +40,32 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
         role="img"
         aria-label={`minimap of microgpt.py — ${completed.length} of 12 chapters complete`}
       >
+        {/* hover backdrop: lights up every line range owned by the hovered chapter, so
+            the whole region that a click will jump to reads as one block, not just
+            the single line under the cursor. */}
+        {hoverChapter?.lines.map(([a, b], idx) => (
+          <rect
+            key={`hoverbg-${idx}`}
+            x={0}
+            y={(a - 1) * H}
+            width={W}
+            height={(b - a + 1) * H}
+            fill="rgba(25,113,194,0.28)"
+          />
+        ))}
         {SOURCE_LINES.map((line, i) => {
           const lineNo = i + 1
           const owner = owners[lineNo]!
           const isDone = owner >= 0 && completed.includes(owner)
           const isCurrent = owner === currentChapter
+          const isHovered = owner >= 0 && owner === hoverChapterId
           const indent = line.length - line.trimStart().length
           const len = Math.min(line.trim().length, 60)
           if (len === 0) return null
+          let fill = 'rgba(255,255,255,0.22)'
+          if (isDone) fill = 'var(--hot)'
+          else if (isCurrent) fill = 'rgba(255,201,77,0.45)'
+          if (isHovered && !isDone) fill = isCurrent ? 'rgba(255,201,77,0.8)' : 'rgba(255,255,255,0.6)'
           return (
             <rect
               key={lineNo}
@@ -55,7 +74,8 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
               width={(len / 60) * (W - 8)}
               height={H - 1.2}
               rx={0.6}
-              fill={isDone ? 'var(--hot)' : isCurrent ? 'rgba(255,201,77,0.45)' : 'rgba(255,255,255,0.22)'}
+              fill={fill}
+              style={{ transition: 'fill 0.1s' }}
             />
           )
         })}
