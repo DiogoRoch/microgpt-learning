@@ -1,0 +1,49 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Design tokens — see PLAN.md "Design direction".
+   Concept: "the annotated file" — a warm paper canvas for the narrative, the
+   dark monospaced file itself always present (code panel, minimap).
+   The signed pair (--pos / --neg) is reserved for signed data everywhere.
+--------------------------------------------------------------------------- */
+:root {
+  --paper: #faf9f7;
+  --ink: #16181d;
+  --pos: #e8590c; /* vermilion — positive values in data viz */
+  --neg: #1971c2; /* cerulean — negative values; interactive affordances */
+  --hot: #ffc94d; /* amber — the "current" thing: active line, current token */
+  --muted: #6b7280;
+
+  --font-display: 'IBM Plex Serif', Georgia, serif;
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+@theme {
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --color-hot: var(--hot);
+  --color-muted: var(--muted);
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-mono: var(--font-mono);
+}
+
+html {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

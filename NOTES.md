@@ -19,3 +19,13 @@ Newest entries first within each phase.
 - **Golden doc subset.** 1000 training steps use `docs[step % 32033]` = the first 1000
   shuffled docs; `docs.json` commits the first 1024 plus the total count. The full
   names list ships separately in `src/data/` for chapter 1 (built from input.txt).
+
+- **RNG-identity proof passed.** Pristine reference run vs instrumented golden.py:
+  all 20 sampled names identical (kamon, ann, karai, …) and final loss 2.6497
+  matches. Full 1000-step pure-Python run: 262 s on this machine.
+- **Golden facts:** first shuffled doc "yuheng" (n=7, step-1 loss 3.3660 ≈ ln 27);
+  emma → [26,4,12,12,0,26]; 3,728 of 4,192 grads nonzero at step 0 (unused wte/wpe
+  rows get none — good chapter-8 material); golden/ totals ~1.4 MB.
+- **Single tsconfig** instead of project references: tests import engine sources
+  directly and `composite` adds friction with `noEmit`; one strict config covers
+  src + tools + tests.
