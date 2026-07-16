@@ -90,6 +90,15 @@ Pushes to the default branch deploy to GitHub Pages via
 fallback via `404.html`). Any static host works: `VITE_BASE=/ npm run build` and serve
 `dist/`.
 
+> [!IMPORTANT]
+> **GitHub Pages source must be set to "GitHub Actions"**, *not* "Deploy from a
+> branch". Under **Settings → Pages → Build and deployment → Source**, choose
+> **GitHub Actions**. If Pages is left on "Deploy from a branch" (`main` / root), it
+> serves the repository's raw `index.html` — whose `<script src="/src/main.tsx">` is
+> Vite's dev-only entry and does not exist as a served file — so the site loads a
+> **blank page**. The `deploy.yml` build artifact is only served when the source is
+> "GitHub Actions".
+
 ## Attribution
 
 **microgpt.py is by [Andrej Karpathy](https://github.com/karpathy)** —
