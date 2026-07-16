@@ -52,3 +52,37 @@ jobs:
             --model claude-opus-4-8
             --allowedTools "Bash(npm:*),Bash(npx:*),Bash(node:*),Bash(python3:*),Bash(gh:*)"
 
+      # The action pushes Claude's work to a branch and only leaves a "Create PR"
+      # link — it never opens the PR itself, so a run that doesn't voluntarily call
+      # `gh pr create` (non-deterministic) leaves the change stranded on a branch.
+      # This step makes PR creation deterministic for issue-triggered runs: if Claude
+      # created a branch, open a PR for it (unless one already exists).
+      - name: Open PR for issue-triggered changes
+        if: ${{ github.event_name == 'issues' && steps.claude.outputs.branch_name != '' }}
+        env:
+          GH_TOKEN: ${{ steps.claude.outputs.github_token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ steps.claude.outputs.branch_name }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
+        run: |
+          set -euo pipefail
+          owner="${REPO%%/*}"
+          # Don't open a duplicate if a PR for this branch already exists (any state).
+          existing=$(gh api "repos/$REPO/pulls?head=$owner:$BRANCH&state=all" --jq 'length' || echo 0)
+          if [ "$existing" -gt 0 ]; then
+            echo "A PR for $BRANCH already exists; nothing to do."
+            exit 0
+          fi
+          # Create the PR. A 422 (e.g. no commits between the branch and main) is
+          # treated as a no-op so a question-only run never fails the job.
+          if gh api -X POST "repos/$REPO/pulls" \
+               -f title="Fix #$ISSUE_NUMBER: $ISSUE_TITLE" \
+               -f head="$BRANCH" \
+               -f base=main \
+               -f body="Automated PR for the changes Claude pushed in response to issue #$ISSUE_NUMBER. Closes #$ISSUE_NUMBER"; then
+            echo "Opened a PR for $BRANCH."
+          else
+            echo "::notice::Could not auto-open a PR for $BRANCH (likely no commits between it and main). The branch is pushed and can be opened manually."
+          fi
+
