@@ -179,3 +179,22 @@ Newest entries first within each phase.
   newline fooled wc) and still described Shiki though the code panel ships the custom
   test-guarded highlighter; ch5's pos-0 explanation used an obscure HTML entity where
   it meant "e^z / e^z = 1".
+
+## Blank GitHub Pages (issue #7)
+
+- **Symptom.** After the first Pages deploy the live site (diogoroch.github.io/microgpt-learning/)
+  rendered a blank page.
+- **Root cause — a Pages *setting*, not a code bug.** `GET /repos/.../pages` reported
+  `build_type: "legacy"`, `source: {branch: "main", path: "/"}`. Pages was serving the
+  repository root through Jekyll, i.e. the *dev* `index.html` with
+  `<script type="module" src="/src/main.tsx">`. `/src/main.tsx` is Vite's dev-only entry
+  and is not a served file in production, so nothing bootstrapped and `#root` stayed empty.
+  The `deploy.yml` artifact (correct hashed `/microgpt-learning/assets/*` bundle) was built
+  on every push but ignored while the source stayed on "branch".
+- **Verified the code is fine.** A faithful `vite build --base=/microgpt-learning/` served
+  under that base path renders in headless Chromium with zero console/page errors — the
+  built `dist/index.html` correctly points at the hashed bundle.
+- **Fix.** Set **Settings → Pages → Build and deployment → Source → "GitHub Actions"**.
+  Tried to flip it programmatically (`PUT /repos/.../pages -f build_type=workflow`) but the
+  Actions integration token lacks `pages: write` (403) — it is an owner-only settings toggle.
+  Documented the requirement in the README Deployment section so it can't silently recur.
