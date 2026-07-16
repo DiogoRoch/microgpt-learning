@@ -198,3 +198,25 @@ Newest entries first within each phase.
   Tried to flip it programmatically (`PUT /repos/.../pages -f build_type=workflow`) but the
   Actions integration token lacks `pages: write` (403) — it is an owner-only settings toggle.
   Documented the requirement in the README Deployment section so it can't silently recur.
+
+## Section-load white flash (issue #9)
+
+- **Symptom.** Navigating between chapters via the code-map (the `Minimap`) flashed a
+  blank/white page for a moment before the next chapter rendered.
+- **Root cause.** Each chapter is a `React.lazy` code-split chunk under a single
+  `<Suspense>` in `App.tsx`. A router navigation is a plain state update (not a React
+  transition), so React immediately unmounted the current chapter and showed the
+  `loading chapter…` fallback — collapsing `<main>` to near-empty paper — while it
+  fetched+parsed the next chunk. Two compounding causes: no transition (fallback shown)
+  and no preloading (network wait).
+- **Fix (UI-only, engine untouched).**
+  1. `BrowserRouter future={{ v7_startTransition: true }}` — react-router (6.30) then
+     wraps navigation state updates in `React.startTransition`, so React keeps the
+     current chapter on screen until the next chunk is ready instead of showing the
+     Suspense fallback. This is the actual flash killer.
+  2. `src/app/chapterModules.ts` — preloadable lazy wrappers (`lazyWithPreload`). Chunks
+     are warmed on idle after first paint (`requestIdleCallback`) and on hover/focus of
+     the header nav links and each minimap region, so the transition resolves near-instantly.
+- **Verified.** A Playwright script clicking through five distinct minimap regions saw the
+  `loading chapter…` fallback **zero** times and reported no console errors; full test
+  suite (44) still green.

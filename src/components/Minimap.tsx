@@ -7,6 +7,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CHAPTERS, TOTAL_LINES, lineOwners } from '../app/chapters.ts'
+import { preloadChapter } from '../app/chapterModules.ts'
 import { useAppStore } from '../app/store.ts'
 import { SOURCE_LINES } from '../code/source.ts'
 
@@ -101,7 +102,11 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
               height={H}
               fill="transparent"
               style={{ cursor: owners[lineNo]! >= 0 ? 'pointer' : 'default' }}
-              onMouseEnter={() => setHoverLine(lineNo)}
+              onMouseEnter={() => {
+                setHoverLine(lineNo)
+                const owner = owners[lineNo]!
+                if (owner >= 0) preloadChapter(owner)
+              }}
               onClick={() => {
                 const owner = owners[lineNo]!
                 if (owner >= 0) navigate(`/ch/${CHAPTERS[owner]!.slug}`)
