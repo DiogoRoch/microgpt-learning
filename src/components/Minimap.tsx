@@ -20,7 +20,8 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
   const W = 36
   const height = TOTAL_LINES * H
 
-  const hoverChapter = hoverLine != null && owners[hoverLine]! >= 0 ? CHAPTERS[owners[hoverLine]!] : null
+  const hoverOwner = hoverLine != null ? owners[hoverLine]! : -1
+  const hoverChapter = hoverOwner >= 0 ? CHAPTERS[hoverOwner] : null
 
   return (
     <nav aria-label="microgpt.py minimap navigation" className="sticky top-6 hidden lg:block">
@@ -39,11 +40,28 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
         role="img"
         aria-label={`minimap of microgpt.py — ${completed.length} of 12 chapters complete`}
       >
+        {/* hover backdrop: light up the whole clickable region a click would focus */}
+        {hoverOwner >= 0 &&
+          SOURCE_LINES.map((_, i) => {
+            if (owners[i + 1]! !== hoverOwner) return null
+            return (
+              <rect
+                key={`hover-${i + 1}`}
+                x={0}
+                y={i * H}
+                width={W}
+                height={H}
+                fill="var(--neg)"
+                fillOpacity={0.18}
+              />
+            )
+          })}
         {SOURCE_LINES.map((line, i) => {
           const lineNo = i + 1
           const owner = owners[lineNo]!
           const isDone = owner >= 0 && completed.includes(owner)
           const isCurrent = owner === currentChapter
+          const isHovered = owner >= 0 && owner === hoverOwner
           const indent = line.length - line.trimStart().length
           const len = Math.min(line.trim().length, 60)
           if (len === 0) return null
@@ -55,7 +73,18 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
               width={(len / 60) * (W - 8)}
               height={H - 1.2}
               rx={0.6}
-              fill={isDone ? 'var(--hot)' : isCurrent ? 'rgba(255,201,77,0.45)' : 'rgba(255,255,255,0.22)'}
+              fill={
+                isDone
+                  ? 'var(--hot)'
+                  : isCurrent
+                    ? isHovered
+                      ? 'rgba(255,201,77,0.8)'
+                      : 'rgba(255,201,77,0.45)'
+                    : isHovered
+                      ? 'rgba(255,255,255,0.6)'
+                      : 'rgba(255,255,255,0.22)'
+              }
+              style={{ transition: 'fill 120ms ease' }}
             />
           )
         })}
