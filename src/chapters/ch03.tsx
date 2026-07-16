@@ -6,7 +6,7 @@
 import { useMemo, useState } from 'react'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { PredictReveal, Recap } from '../components/Quiz.tsx'
+import { NumericGuess, PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
 import { Term } from '../components/Term.tsx'
 import { Aside } from '../components/Aside.tsx'
 import { CompareToggle } from '../components/Compare.tsx'
@@ -164,7 +164,7 @@ function InitHistogram() {
   )
 }
 
-function MatrixExplorer() {
+function MatrixExplorer({ onExplore }: { onExplore: (key: string) => void }) {
   const [selectedKey, setSelectedKey] = useState('wte')
   const step = useAppStore((s) => s.checkpointStep)
   const model = useModelAt(step)
@@ -175,7 +175,13 @@ function MatrixExplorer() {
   }, [m, model, step])
   return (
     <div className="not-prose my-4 space-y-3">
-      <Treemap selected={selectedKey} onSelect={setSelectedKey} />
+      <Treemap
+        selected={selectedKey}
+        onSelect={(k) => {
+          setSelectedKey(k)
+          onExplore(k)
+        }}
+      />
       <div className="flex flex-wrap items-start gap-4">
         <MatrixHeatmap
           data={data}
@@ -202,6 +208,7 @@ function MatrixExplorer() {
 const chapter = CHAPTERS[3]!
 
 export default function Ch03() {
+  const [explored, setExplored] = useState<ReadonlySet<string>>(new Set())
   return (
     <ChapterFrame chapter={chapter}>
       <p>
@@ -218,7 +225,38 @@ export default function Ch03() {
         the budget the MLP takes (2,048 of 4,192), and that <code>wte</code> and{' '}
         <code>lm_head</code> are two <em>separate</em> 27×16 matrices.
       </p>
-      <MatrixExplorer />
+      <MatrixExplorer onExplore={(k) => setExplored((s) => (s.has(k) ? s : new Set(s).add(k)))} />
+
+      <TryIt
+        qid="ch3-explore"
+        task={<>Open at least three different matrices in the treemap — make sure one of them is <code>mlp_fc1</code>, the biggest block — and flip the untrained/trained toggle on one.</>}
+        done={explored.size >= 3 && explored.has('layer0.mlp_fc1')}
+        payoff={
+          <>
+            You&apos;ve now seen the model&apos;s entire memory: nine matrices, no more. The
+            trained versions have visible structure — rows that mean &quot;the letter
+            e&quot; or &quot;position 3&quot; — where the untrained ones are uniform noise.
+            Everything the next six chapters explain is how that structure gets written.
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch3-wte-a"
+        question={<>You want to inspect what the model learned about the letter &apos;a&apos;. Which parameters do you look at?</>}
+        options={['row 0 of wte (and row 0 of lm_head)', 'column 0 of wpe', 'all of mlp_fc1']}
+        answerIndex={0}
+        hint={<>&apos;a&apos; is token 0 — and remember from the treemap that two different matrices have one row per token.</>}
+        explanation={
+          <>
+            &apos;a&apos; is token 0, so <code>wte[0]</code> is its 16-number
+            representation going <em>in</em>, and <code>lm_head[0]</code> is the direction
+            that scores &apos;a&apos; as the <em>next</em> token coming out. Select wte in
+            the treemap and toggle trained — row 0 is visibly no longer noise. (Attention
+            and MLP weights also shape how &apos;a&apos; behaves, but they&apos;re shared
+            across all tokens.)
+          </>
+        }
+      />
 
       <h2>Born Gaussian</h2>
       <p>
@@ -237,36 +275,28 @@ export default function Ch03() {
         into these matrices by <Term t="gradient">gradients</Term> (chapter 8).
       </p>
 
-      <Aside kind="wild" title="GPT-2 ties wte and lm_head; microgpt doesn't">
-        In GPT-2 the same matrix embeds tokens on the way in and scores them on the way
-        out (weight tying) — it saves parameters and often helps. microgpt keeps them
-        separate for simplicity: 432 parameters each, learned independently. Also missing
-        relative to GPT-2: every bias vector (all linears here are pure matrix
-        multiplies) and layernorm&apos;s learnable scale/shift. At GPT-2 scale the same
-        blueprint holds ~124 million parameters — 30,000× this file, same nine roles.
-      </Aside>
-
       <PredictReveal
-        qid="ch3-wte-a"
-        question={<>You want to inspect what the model learned about the letter &apos;a&apos;. Which parameters do you look at?</>}
-        options={['row 0 of wte (and row 0 of lm_head)', 'column 0 of wpe', 'all of mlp_fc1']}
+        qid="ch3-determinism"
+        question={<>Run the file twice on two different machines. How do the two initial weight sets compare?</>}
+        options={['identical, all 4,192 of them', 'same distribution, different numbers', 'same except wte']}
         answerIndex={0}
+        hint={<>Line 12: <code>random.seed(42)</code>. What does a seeded generator produce on the second run?</>}
         explanation={
           <>
-            &apos;a&apos; is token 0, so <code>wte[0]</code> is its 16-number
-            representation going <em>in</em>, and <code>lm_head[0]</code> is the direction
-            that scores &apos;a&apos; as the <em>next</em> token coming out. Select wte in
-            the treemap and toggle trained — row 0 is visibly no longer noise. (Attention
-            and MLP weights also shape how &apos;a&apos; behaves, but they&apos;re shared
-            across all tokens.)
+            <code>random.seed(42)</code> pins the whole stream: same shuffle, same 4,192
+            Gaussian draws, same training trajectory, same 20 sampled names at the end.
+            That determinism is why this app can check every number it shows you against
+            the Python original — the histogram above is <em>the</em> init, not <em>an</em> init.
           </>
         }
       />
-      <PredictReveal
+      <NumericGuess
         qid="ch3-double-embd"
         question={<>If n_embd doubled from 16 to 32, how many parameters would wte have?</>}
-        options={['432 (unchanged)', '864', '1,728']}
-        answerIndex={1}
+        answer={weights['wte']!.length * 32}
+        placeholder="count"
+        hint={<>wte is vocab_size × n_embd. The vocabulary hasn&apos;t changed — only the width.</>}
+        format={(v) => v.toLocaleString()}
         explanation={
           <>
             wte is vocab_size × n_embd = 27 × 32 = <strong>864</strong> — embeddings scale
@@ -280,6 +310,7 @@ export default function Ch03() {
         question={<>How many bias parameters does this model have?</>}
         options={['one per linear layer (7)', 'one per neuron (155)', 'zero']}
         answerIndex={2}
+        hint={<>Check the treemap total: 432 + 256 + 432 + 4·256 + 1,024 + 1,024 already accounts for everything.</>}
         explanation={
           <>
             <strong>Zero.</strong> Line 93 says it up front: &quot;no biases&quot;. Every
@@ -289,6 +320,15 @@ export default function Ch03() {
           </>
         }
       />
+
+      <Aside kind="wild" title="GPT-2 ties wte and lm_head; microgpt doesn't">
+        In GPT-2 the same matrix embeds tokens on the way in and scores them on the way
+        out (weight tying) — it saves parameters and often helps. microgpt keeps them
+        separate for simplicity: 432 parameters each, learned independently. Also missing
+        relative to GPT-2: every bias vector (all linears here are pure matrix
+        multiplies) and layernorm&apos;s learnable scale/shift. At GPT-2 scale the same
+        blueprint holds ~124 million parameters — 30,000× this file, same nine roles.
+      </Aside>
 
       <Recap
         chapterId={3}

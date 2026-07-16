@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { PredictReveal, Recap } from '../components/Quiz.tsx'
+import { NumericGuess, PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
 import { Term } from '../components/Term.tsx'
 import { Aside } from '../components/Aside.tsx'
 import { K } from '../components/Katex.tsx'
@@ -21,13 +21,16 @@ import { useAppStore } from '../app/store.ts'
 import { labelOf, useTrace, VOCAB_LABELS } from '../app/useModel.ts'
 import { softmaxProbs } from '../engine/tensor.ts'
 
-function LossStepper() {
+function LossStepper({ onView }: { onView: (pos: number) => void }) {
   const example = useAppStore((s) => s.example)
   const step = useAppStore((s) => s.checkpointStep)
   const trace = useTrace(example, step)
   const player = useStepPlayer(trace?.n ?? 1, 1)
   const { setHighlight } = useCodeSync()
   useEffect(() => setHighlight([163, 164, 165, 166, 167, 168]), [setHighlight, player.index])
+  useEffect(() => {
+    if (trace) onView(Math.min(player.index, trace.n - 1))
+  }, [trace, player.index, onView])
 
   if (!trace) return <p className="font-mono text-sm text-muted">loading…</p>
   const pos = Math.min(player.index, trace.n - 1)
@@ -78,12 +81,13 @@ function LossStepper() {
 }
 
 /** Shift-invariance: add any constant to all logits, probs don't move. */
-function ShiftDemo() {
+function ShiftDemo({ onShift }: { onShift: (shift: number) => void }) {
   const example = useAppStore((s) => s.example)
   const step = useAppStore((s) => s.checkpointStep)
   const trace = useTrace(example, step)
   const [shift, setShift] = useState(0)
   const { setHighlight } = useCodeSync()
+  useEffect(() => onShift(shift), [shift, onShift])
   const shifted = useMemo(() => {
     if (!trace) return null
     const logits = trace.calls[0]!.logits.map((l) => l + shift)
@@ -123,6 +127,23 @@ const chapter = CHAPTERS[7]!
 
 export default function Ch07() {
   const example = useAppStore((s) => s.example)
+  const step = useAppStore((s) => s.checkpointStep)
+  const trace = useTrace(example, step)
+  const hardest = useMemo(() => {
+    if (!trace) return null
+    let best = 0
+    for (let i = 1; i < trace.lossT.length; i++) if (trace.lossT[i]! > trace.lossT[best]!) best = i
+    return best
+  }, [trace])
+  const [hardestFound, setHardestFound] = useState(false)
+  const onView = useMemo(
+    () => (pos: number) => {
+      setHardestFound((f) => f || (hardest != null && pos === hardest))
+    },
+    [hardest],
+  )
+  const [bigShift, setBigShift] = useState(false)
+  const onShift = useMemo(() => (s: number) => setBigShift((b) => b || Math.abs(s) >= 8), [])
   return (
     <ChapterFrame chapter={chapter}>
       <p>
@@ -134,7 +155,7 @@ export default function Ch07() {
       </p>
 
       <h2>Follow the grade for &quot;{example}&quot;</h2>
-      <LossStepper />
+      <LossStepper onView={onView} />
       <p>
         Read the loss bar chart: the model isn&apos;t equally wrong everywhere. Early
         positions (first letters) are genuinely uncertain — many names could start this
@@ -142,13 +163,44 @@ export default function Ch07() {
         easier.
       </p>
 
-      <h2>Softmax and the max-subtraction trick</h2>
+      <TryIt
+        qid="ch7-hardest"
+        task={<>Find the hardest prediction in &quot;{example}&quot;: scrub the stepper to the position with the tallest loss bar.</>}
+        done={hardestFound}
+        payoff={
+          trace && hardest != null ? (
+            <>
+              The worst moment is predicting &apos;{labelOf(trace.tokens[hardest + 1]!)}&apos;
+              at position {hardest}: p(target) is only {fmt(trace.probs[hardest]![trace.tokens[hardest + 1]!]!, 3)},
+              so −log p = {fmt(trace.lossT[hardest]!, 3)}. Genuine uncertainty — several
+              letters were plausible there — costs loss no matter how good the model gets.
+              Averaging over positions (line 169) is how one name becomes one grade.
+            </>
+          ) : (
+            <>Genuine uncertainty — several letters were plausible there — costs loss no matter how good the model gets.</>
+          )
+        }
+      />
       <p>
         Softmax exponentiates each logit and normalizes:{' '}
         <Term t="softmax">probabilities</Term> that sum to 1. Line 98 first subtracts the
         largest logit from all of them. Why that&apos;s free:
       </p>
-      <ShiftDemo />
+      <ShiftDemo onShift={onShift} />
+      <TryIt
+        qid="ch7-shift"
+        task={<>Slam the slider to an extreme — add at least ±8 to all 27 logits — and read the &quot;max probability change&quot; readout.</>}
+        done={bigShift}
+        payoff={
+          <>
+            The probabilities moved by ~10⁻¹⁶ — floating-point dust. Softmax genuinely
+            only sees the <em>differences</em> between logits, which is why line 98 can
+            subtract the max for free. e⁸ ≈ 2981, though: without that subtraction,
+            confident logits would overflow <code>math.exp</code> long before the math
+            went wrong.
+          </>
+        }
+      />
       <Aside kind="math" title="Stability, and one sneaky detail about gradients">
         <p>
           <K block tex="\mathrm{softmax}(z)_i = \frac{e^{z_i - c}}{\sum_j e^{z_j - c}} \quad\text{for any } c" />
@@ -176,6 +228,7 @@ export default function Ch07() {
         question={<>Set every weight in the model to zero. What is the loss — exactly?</>}
         options={['exactly 0', 'exactly ln 27 ≈ 3.296', 'undefined — division by zero']}
         answerIndex={1}
+        hint={<>Zero weights → all logits 0 → softmax of 27 equal scores gives…?</>}
         explanation={
           <>
             Zero weights → all 27 logits are 0 → softmax gives 1/27 everywhere → every
@@ -186,11 +239,15 @@ export default function Ch07() {
           </>
         }
       />
-      <PredictReveal
+      <NumericGuess
         qid="ch7-vocab100"
-        question={<>Same file, but a dataset with 99 unique characters (vocab_size = 100). Initial loss?</>}
-        options={['≈ 3.30 — vocab doesn&apos;t matter', '≈ 4.61', '≈ 100']}
-        answerIndex={1}
+        question={<>Same file, but a dataset with 99 unique characters (vocab_size = 100). What does the initial loss become?</>}
+        answer={Math.log(100)}
+        tolerance={0.05}
+        placeholder="loss"
+        unit="≈"
+        format={(v) => v.toFixed(2)}
+        hint={<>Same rule as before: −log(1/vocab_size) = ln(vocab_size). A calculator (or the ² and log keys in your head) gets you there.</>}
         explanation={
           <>
             Uniform guessing over 100 tokens: −log(1/100) = ln 100 ≈{' '}
@@ -205,6 +262,7 @@ export default function Ch07() {
         question={<>The model assigns p = 1.0 to the correct token at every position of a name. The name&apos;s loss is…</>}
         options={['1.0', '0', '−1']}
         answerIndex={1}
+        hint={<>What is −log(1)?</>}
         explanation={
           <>
             −log(1) = 0, averaged over positions: still 0. Unreachable in practice — the

@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { PredictReveal, Recap } from '../components/Quiz.tsx'
+import { PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
 import { Term } from '../components/Term.tsx'
 import { useCodeSync, lineRange } from '../components/CodeSync.tsx'
 import facts from '../data/facts.json'
@@ -33,7 +33,7 @@ const STAGES: Stage[] = [
   { id: 'sample', title: 'inference', value: `"${facts.samplesPython[0]}", "${facts.samplesPython[1]}", …`, detail: 'temperature 0.5, stop on BOS', chapter: 10, lines: [186, 200] },
 ]
 
-function FlowMap() {
+function FlowMap({ onExplored }: { onExplored: (id: string) => void }) {
   const navigate = useNavigate()
   const { setHighlight } = useCodeSync()
   // The last stage pointed at: keeps its card lit and its lines highlighted on
@@ -43,6 +43,7 @@ function FlowMap() {
   const point = (s: Stage) => {
     setActiveId(s.id)
     setHighlight(lineRange(s.lines[0], s.lines[1]))
+    onExplored(s.id)
   }
 
   return (
@@ -93,6 +94,7 @@ function FlowMap() {
 const chapter = CHAPTERS[0]!
 
 export default function Ch00() {
+  const [explored, setExplored] = useState<ReadonlySet<string>>(new Set())
   return (
     <ChapterFrame chapter={chapter} fullFileCode>
       <p>
@@ -116,7 +118,50 @@ export default function Ch00() {
         running the file (its exact random seed and all), checked against the Python
         original to nine decimal places.
       </p>
-      <FlowMap />
+      <FlowMap onExplored={(id) => setExplored((s) => (s.has(id) ? s : new Set(s).add(id)))} />
+
+      <TryIt
+        qid="ch0-trace-stages"
+        task={<>Trace the algorithm through the file: point at four different stages above and watch their lines light up on the minimap and in the code panel.</>}
+        done={explored.size >= 4}
+        payoff={
+          <>
+            That mapping is the entire app. Every concept you&apos;re about to learn lives at
+            specific, numbered lines — and the minimap on the left is the file itself, filling
+            in as you master it. By chapter 11, all 200 lines will be lit.
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch0-vocab"
+        question={<>Stage 2 says vocab_size = 27. The dataset is 32,033 <em>lowercase</em> names. Why 27 and not 26?</>}
+        options={['padding to a power-friendly size', 'one extra token marks where names begin and end', 'uppercase letters share ids']}
+        answerIndex={1}
+        hint={<>26 letters, yes — but how would the model ever know where a name <em>stops</em>?</>}
+        explanation={
+          <>
+            The 26 letters get ids 0–25, and one special <Term t="BOS">BOS</Term> token gets id 26.
+            It brackets every name on both sides — the left one is the prompt that means
+            &quot;a name starts here&quot;, the right one is the model&apos;s way of saying
+            &quot;I&apos;m done.&quot; Chapter 1 makes this concrete.
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch0-first-loss"
+        question={<>Before any training, the model&apos;s first measured loss is 3.37 (stage 6). What sets that number?</>}
+        options={['the random seed', 'uniform guessing over 27 tokens: −ln(1/27) ≈ 3.30', 'the length of the first name']}
+        answerIndex={1}
+        hint={<>An untrained model knows nothing. What is the least-wrong honest strategy when you must spread probability over 27 options?</>}
+        explanation={
+          <>
+            An untrained model spreads probability almost evenly, so each prediction is worth
+            about −log(1/27) = ln 27 ≈ 3.30. The measured 3.37 is that, plus a little noise
+            from the random init on one particular document (&quot;yuheng&quot;). Chapter 7
+            derives it; chapter 9 shows the very first step of the real loss curve landing there.
+          </>
+        }
+      />
 
       <h2>One name, all the way through</h2>
       <p>
@@ -134,6 +179,7 @@ export default function Ch00() {
         question={<>The pure-Python file trains in about 4½ minutes. This app re-implements it with fast arrays. How long does the same 1000-step training take in your browser?</>}
         options={['~2 minutes', '~20 seconds', '~0.3 seconds']}
         answerIndex={2}
+        hint={<>The math is 4,192 small numbers times a thousand steps. Where do you think Python&apos;s 4½ minutes actually go?</>}
         explanation={
           <>
             <strong>~0.3 seconds</strong> — measured at {(facts.tsTrainMs / 1000).toFixed(2)}s for
@@ -141,34 +187,6 @@ export default function Ch00() {
             algorithm. Everything else is just efficiency.&quot;</em> The Python file spends its
             time building ~100,000 little Value objects per step; the math itself is tiny.
             Chapter 9 lets you run it yourself.
-          </>
-        }
-      />
-      <PredictReveal
-        qid="ch0-vocab"
-        question={<>The dataset is 32,033 lowercase names. Why is vocab_size 27 and not 26?</>}
-        options={['padding to a power-friendly size', 'one extra token marks where names begin and end', 'uppercase letters share ids']}
-        answerIndex={1}
-        explanation={
-          <>
-            The 26 letters get ids 0–25, and one special <Term t="BOS">BOS</Term> token gets id 26.
-            It brackets every name on both sides — the left one is the prompt that means
-            &quot;a name starts here&quot;, the right one is the model&apos;s way of saying
-            &quot;I&apos;m done.&quot; Chapter 1 makes this concrete.
-          </>
-        }
-      />
-      <PredictReveal
-        qid="ch0-first-loss"
-        question={<>Before any training, the model&apos;s first measured loss is 3.37. What sets that number?</>}
-        options={['the random seed', 'uniform guessing over 27 tokens: −ln(1/27) ≈ 3.30', 'the length of the first name']}
-        answerIndex={1}
-        explanation={
-          <>
-            An untrained model spreads probability almost evenly, so each prediction is worth
-            about −log(1/27) = ln 27 ≈ 3.30. The measured 3.37 is that, plus a little noise
-            from the random init on one particular document (&quot;yuheng&quot;). Chapter 7
-            derives it; chapter 9 shows the very first step of the real loss curve landing there.
           </>
         }
       />

@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { PredictReveal, Recap } from '../components/Quiz.tsx'
+import { PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
 import { Term } from '../components/Term.tsx'
 import { Aside } from '../components/Aside.tsx'
 import { K } from '../components/Katex.tsx'
@@ -21,14 +21,21 @@ import { useAppStore } from '../app/store.ts'
 import { labelOf, traceWord, useTrace, VOCAB_LABELS } from '../app/useModel.ts'
 import { Model } from '../engine/model.ts'
 
-function EmbeddingStepper() {
+function EmbeddingStepper({ onAllVisited }: { onAllVisited: () => void }) {
   const example = useAppStore((s) => s.example)
   const step = useAppStore((s) => s.checkpointStep)
   const trace = useTrace(example, step)
   const player = useStepPlayer(trace?.n ?? 1, 1)
   const { setHighlight } = useCodeSync()
+  const [visited, setVisited] = useState<ReadonlySet<number>>(new Set([0]))
 
   useEffect(() => setHighlight([109, 110, 111, 112]), [setHighlight, player.index])
+  useEffect(() => {
+    setVisited((s) => (s.has(player.index) ? s : new Set(s).add(player.index)))
+  }, [player.index])
+  useEffect(() => {
+    if (trace && visited.size >= trace.n) onAllVisited()
+  }, [trace, visited, onAllVisited])
 
   if (!trace) return <p className="font-mono text-sm text-muted">loading the precomputed run…</p>
   const call = trace.calls[Math.min(player.index, trace.n - 1)]!
@@ -99,7 +106,7 @@ function RmsnormDemo() {
   )
 }
 
-function PerturbLab() {
+function PerturbLab({ onEditAt }: { onEditAt: (pos: number, n: number) => void }) {
   const example = useAppStore((s) => s.example)
   const step = useAppStore((s) => s.checkpointStep)
   const trace = useTrace(example, step)
@@ -107,6 +114,10 @@ function PerturbLab() {
   const [delta, setDelta] = useState(0.8)
   const [posIdx, setPosIdx] = useState(1)
   const { setHighlight } = useCodeSync()
+
+  useEffect(() => {
+    if (trace) onEditAt(Math.min(posIdx, trace.n - 1), trace.n)
+  }, [trace, posIdx, onEditAt])
 
   const perturbed = useMemo(() => {
     if (!trace) return null
@@ -218,6 +229,12 @@ const chapter = CHAPTERS[4]!
 
 export default function Ch04() {
   const example = useAppStore((s) => s.example)
+  const [allVisited, setAllVisited] = useState(false)
+  const [editedLast, setEditedLast] = useState(false)
+  const onAllVisited = useMemo(() => () => setAllVisited(true), [])
+  const onEditAt = useMemo(() => (pos: number, n: number) => {
+    if (n >= 2 && pos === n - 1) setEditedLast(true)
+  }, [])
   return (
     <ChapterFrame chapter={chapter}>
       <p>
@@ -229,7 +246,7 @@ export default function Ch04() {
       </p>
 
       <h2>Watch a word become vectors</h2>
-      <EmbeddingStepper />
+      <EmbeddingStepper onAllVisited={onAllVisited} />
       <p>
         Step through the positions: repeated letters (like the two m&apos;s in emma) reuse
         the <em>same</em> <code>wte</code> row but get different <code>wpe</code> rows —
@@ -238,6 +255,36 @@ export default function Ch04() {
         rows have structure.
       </p>
 
+      <TryIt
+        qid="ch4-visit-all"
+        task={<>Walk &quot;{example}&quot; all the way through: visit every position on the stepper and watch which of the two vectors changes at each step.</>}
+        done={allVisited}
+        payoff={
+          <>
+            The pattern you just saw: <code>wte</code> only changes when the <em>letter</em>{' '}
+            changes, <code>wpe</code> changes at <em>every</em> step. Repeated letters get
+            identical tok_emb rows — the position vector is the only thing telling the
+            model &quot;this is the second one.&quot;
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch4-same-token"
+        question={<>&quot;emma&quot; has two m&apos;s (positions 2 and 3). Do they enter the model as the same vector x?</>}
+        options={['yes — same token, same x', 'no — same wte row, different wpe rows', 'no — wte differs per position']}
+        answerIndex={1}
+        hint={<>x is a <em>sum</em> of two lookups. Which of the two indices differs between the m&apos;s?</>}
+        explanation={
+          <>
+            Both m&apos;s share <code>wte[12]</code>, but position 2 adds{' '}
+            <code>wpe[2]</code> and position 3 adds <code>wpe[3]</code>. Scrub the stepper
+            above between them and watch tok_emb stay frozen while pos_emb changes.
+            Without wpe, the model literally could not distinguish &quot;mm&quot; from
+            &quot;m&quot;.
+          </>
+        }
+      />
+
       <h2>rmsnorm: the volume knob</h2>
       <p>
         Line 112 immediately renormalizes x. <Term t="rmsnorm">rmsnorm</Term> divides the
@@ -245,6 +292,20 @@ export default function Ch04() {
         input scale:
       </p>
       <RmsnormDemo />
+      <PredictReveal
+        qid="ch4-rms-scale"
+        question={<>If x is multiplied by 10, rmsnorm(10x) is…</>}
+        options={['10× rmsnorm(x)', 'essentially identical to rmsnorm(x)', 'all zeros']}
+        answerIndex={1}
+        hint={<>You have the slider right above — drag k and watch the output row.</>}
+        explanation={
+          <>
+            ms grows 100×, so scale = (ms+1e-5)^-0.5 shrinks 10×, cancelling exactly (the
+            +1e-5 makes it &quot;essentially&quot; rather than &quot;exactly&quot;). You
+            just verified it on the slider. Direction survives; magnitude is discarded.
+          </>
+        }
+      />
       <Aside kind="math" title="Why the rmsnorm after the embedding sum isn't redundant">
         <p>
           A second rmsnorm follows at line 117 (start of the attention block), so this one
@@ -266,40 +327,18 @@ export default function Ch04() {
         embedding and nudge it. The whole forward pass below re-runs live (it&apos;s a few
         microseconds), so the distribution you see is real, not simulated:
       </p>
-      <PerturbLab />
+      <PerturbLab onEditAt={onEditAt} />
 
-      <Aside kind="wild" title="Real GPTs: same two tables, plus better position tricks">
-        GPT-2 does literally this — wte + wpe, learned, added. Modern models mostly
-        replace learned absolute positions with rotary embeddings (RoPE), which encode{' '}
-        <em>relative</em> offsets directly inside attention. The token-embedding table
-        survives at every scale: GPT-2&apos;s wte is 50,257 × 768.
-      </Aside>
-
-      <PredictReveal
-        qid="ch4-same-token"
-        question={<>&quot;emma&quot; has two m&apos;s (positions 2 and 3). Do they enter the model as the same vector x?</>}
-        options={['yes — same token, same x', 'no — same wte row, different wpe rows', 'no — wte differs per position']}
-        answerIndex={1}
-        explanation={
+      <TryIt
+        qid="ch4-edit-last"
+        task={<>Move the edit to the <em>last</em> position of &quot;{example}&quot; and watch the ripple chart.</>}
+        done={editedLast}
+        payoff={
           <>
-            Both m&apos;s share <code>wte[12]</code>, but position 2 adds{' '}
-            <code>wpe[2]</code> and position 3 adds <code>wpe[3]</code>. Scrub the stepper
-            above between them and watch tok_emb stay frozen while pos_emb changes.
-            Without wpe, the model literally could not distinguish &quot;mm&quot; from
-            &quot;m&quot;.
-          </>
-        }
-      />
-      <PredictReveal
-        qid="ch4-rms-scale"
-        question={<>If x is multiplied by 10, rmsnorm(10x) is…</>}
-        options={['10× rmsnorm(x)', 'essentially identical to rmsnorm(x)', 'all zeros']}
-        answerIndex={1}
-        explanation={
-          <>
-            ms grows 100×, so scale = (ms+1e-5)^-0.5 shrinks 10×, cancelling exactly (the
-            +1e-5 makes it &quot;essentially&quot; rather than &quot;exactly&quot;). You
-            just verified it on the slider. Direction survives; magnitude is discarded.
+            The ripple collapsed to a single bar: an edit at the last position can only
+            change the last prediction, because every earlier position had already finished
+            computing before this token existed. Causality isn&apos;t a rule the model
+            checks — it&apos;s the arrow of time in the computation itself.
           </>
         }
       />
@@ -308,6 +347,7 @@ export default function Ch04() {
         question={<>You edit the embedding of the token at position 2. Which positions&apos; predictions can change?</>}
         options={['all of them', 'only position 2', 'positions 2 and later']}
         answerIndex={2}
+        hint={<>Look at the gray bars in the lab. Which side of the edit are they always on?</>}
         explanation={
           <>
             The edit changes x at position 2, which changes the k and v that position
@@ -318,6 +358,13 @@ export default function Ch04() {
           </>
         }
       />
+
+      <Aside kind="wild" title="Real GPTs: same two tables, plus better position tricks">
+        GPT-2 does literally this — wte + wpe, learned, added. Modern models mostly
+        replace learned absolute positions with rotary embeddings (RoPE), which encode{' '}
+        <em>relative</em> offsets directly inside attention. The token-embedding table
+        survives at every scale: GPT-2&apos;s wte is 50,257 × 768.
+      </Aside>
 
       <Recap
         chapterId={4}

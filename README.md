@@ -74,7 +74,8 @@ src/engine/               # UI-agnostic, parity-tested engines (scalar + f32 ten
 src/worker/               # training worker + typed message protocol
 src/viz/                  # VectorChips, MatrixHeatmap, AttnMatrix, BarDistribution,
                           # GraphView, LossCurve — hand-rolled SVG/DOM primitives
-src/components/           # CodePanel (line-sync), Minimap, StepPlayer, PredictReveal…
+src/components/           # CodePanel (line-sync), Minimap, StepPlayer, checkpoints
+                          # (PredictReveal, NumericGuess, TryIt, PickLine)…
 src/chapters/             # ch00 – ch11
 src/data/                 # names list, precomputed run (41 snapshots), slim payloads
 ```

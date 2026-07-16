@@ -3,10 +3,10 @@
  * with the file's own recipe, a chars ↔ ids round-trip on user input, and
  * the two-sided BOS story.
  */
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { PredictReveal, Recap } from '../components/Quiz.tsx'
+import { NumericGuess, PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
 import { Term } from '../components/Term.tsx'
 import { Aside } from '../components/Aside.tsx'
 import { TokenTape } from '../components/TokenTape.tsx'
@@ -75,7 +75,7 @@ function VocabTable() {
   )
 }
 
-function RoundTrip() {
+function RoundTrip({ onState }: { onState: (s: { cleanedLength: number; rejected: boolean }) => void }) {
   const example = useAppStore((s) => s.example)
   const setExample = useAppStore((s) => s.setExample)
   const [raw, setRaw] = useState(example)
@@ -87,6 +87,7 @@ function RoundTrip() {
   )
   const rejected = cleaned.length < [...raw].length
   const tokens = useMemo(() => tok.encodeDoc(cleaned), [cleaned])
+  useEffect(() => onState({ cleanedLength: cleaned.length, rejected }), [cleaned.length, rejected, onState])
 
   return (
     <div className="not-prose my-4 rounded-lg border border-ink/15 bg-white/60 p-4">
@@ -145,6 +146,10 @@ function BosStory() {
 const chapter = CHAPTERS[1]!
 
 export default function Ch01() {
+  const [tripDone, setTripDone] = useState(false)
+  const onTripState = useCallback((s: { cleanedLength: number; rejected: boolean }) => {
+    if (s.cleanedLength >= 3 && s.rejected) setTripDone(true)
+  }, [])
   return (
     <ChapterFrame chapter={chapter}>
       <p>
@@ -171,8 +176,54 @@ export default function Ch01() {
         no name.
       </p>
 
+      <NumericGuess
+        qid="ch1-id-of-m"
+        question={<>Without counting on the table above: which id does &apos;m&apos; get?</>}
+        answer={tok.uchars.indexOf('m')}
+        placeholder="id"
+        hint={<>&apos;m&apos; is the 13th letter of the alphabet — but ids start at 0, not 1.</>}
+        explanation={
+          <>
+            &apos;m&apos; is the 13th letter and ids start at 0 — so 12. Verify in the
+            round-trip box below: emma is [26, <strong>4, 12, 12, 0</strong>, 26]. Position in
+            the sorted unique-character list <em>is</em> the id; there is no other lookup
+            table anywhere.
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch1-digits-vocab"
+        question={<>If the dataset also contained the ten digits 0–9, what would vocab_size be?</>}
+        options={['27', '36', '37']}
+        answerIndex={2}
+        hint={<>Count the unique characters first, then remember line 25 always mints one more id on top.</>}
+        explanation={
+          <>
+            26 letters + 10 digits = 36 unique characters → ids 0–35 (digits sort before
+            letters!), and BOS becomes id 36, so{' '}
+            <code>vocab_size = len(uchars) + 1 = 37</code>. Everything downstream — wte
+            rows, lm_head rows, the softmax width, the ln(vocab_size) starting loss —
+            resizes automatically from this one number.
+          </>
+        }
+      />
+
       <h2>Round trip: chars ⇄ ids</h2>
-      <RoundTrip />
+      <RoundTrip onState={onTripState} />
+      <TryIt
+        qid="ch1-roundtrip"
+        task={<>Make the tokenizer flinch: type a word of at least 3 letters that also contains something <em>outside</em> the vocabulary — a hyphen, an apostrophe, an é, a digit — and watch what survives.</>}
+        done={tripDone}
+        payoff={
+          <>
+            The out-of-vocabulary characters simply vanished — this app drops them, while the
+            real file would crash (<code>uchars.index</code> raises ValueError). A tokenizer
+            can only speak the characters its training data taught it. And note the side
+            effect: the surviving word is now <strong>your running example</strong> — chapters
+            4, 5 and 7 will trace it through the real model.
+          </>
+        }
+      />
 
       <h2>Why BOS brackets both sides</h2>
       <p>
@@ -189,41 +240,17 @@ export default function Ch01() {
         length counter anywhere in the file.
       </p>
 
-      <Aside kind="wild" title="Real GPTs tokenize subwords, not characters">
-        Production models use byte-pair encoding (BPE): frequent character chunks
-        (&quot;the&quot;, &quot;ing&quot;, &quot; name&quot;) become single tokens, giving
-        vocabularies of 50k–200k ids and much shorter sequences. Same idea — text becomes
-        integer ids from a fixed vocabulary — just a smarter dictionary. GPT-2 would carve
-        &quot;emma&quot; into one or two tokens, not four. Real models also carry several
-        special tokens (end-of-text, message separators), not a single BOS.
-      </Aside>
-
       <PredictReveal
-        qid="ch1-id-of-m"
-        question={<>Without counting on your fingers: which id does &apos;m&apos; get?</>}
-        options={['11', '12', '13']}
+        qid="ch1-encode-ab"
+        question={<>Put it together: what token list does the two-letter name &quot;ab&quot; become on line 157?</>}
+        options={['[0, 1]', '[26, 0, 1, 26]', '[26, 1, 2, 26]']}
         answerIndex={1}
+        hint={<>Two things at once: ids start at 0, and every document gets bracketed.</>}
         explanation={
           <>
-            &apos;m&apos; is the 13th letter and ids start at 0 — so 12. Verify in the
-            round-trip box: emma is [26, <strong>4, 12, 12, 0</strong>, 26]. Position in
-            the sorted unique-character list <em>is</em> the id; there is no other lookup
-            table anywhere.
-          </>
-        }
-      />
-      <PredictReveal
-        qid="ch1-digits-vocab"
-        question={<>If the dataset also contained the ten digits 0–9, what would vocab_size be?</>}
-        options={['27', '36', '37']}
-        answerIndex={2}
-        explanation={
-          <>
-            26 letters + 10 digits = 36 unique characters → ids 0–35 (digits sort before
-            letters!), and BOS becomes id 36, so{' '}
-            <code>vocab_size = len(uchars) + 1 = 37</code>. Everything downstream — wte
-            rows, lm_head rows, the softmax width, the ln(vocab_size) starting loss —
-            resizes automatically from this one number.
+            &apos;a&apos; is 0, &apos;b&apos; is 1, and <code>[BOS] + tokens + [BOS]</code>{' '}
+            wraps them in 26s. Six characters of Python, and you can now read any tokenized
+            name in this app at sight.
           </>
         }
       />
@@ -232,6 +259,7 @@ export default function Ch01() {
         question={<>Suppose line 157 only prepended BOS: tokens = [BOS] + chars. What breaks?</>}
         options={['training crashes on short names', 'generated names never learn to end', 'the vocabulary shrinks to 26']}
         answerIndex={1}
+        hint={<>Look at the last training arrow above (a → ·). What would the model never get to practice?</>}
         explanation={
           <>
             The model would never see one example of &quot;emit BOS when the name is
@@ -242,6 +270,15 @@ export default function Ch01() {
           </>
         }
       />
+
+      <Aside kind="wild" title="Real GPTs tokenize subwords, not characters">
+        Production models use byte-pair encoding (BPE): frequent character chunks
+        (&quot;the&quot;, &quot;ing&quot;, &quot; name&quot;) become single tokens, giving
+        vocabularies of 50k–200k ids and much shorter sequences. Same idea — text becomes
+        integer ids from a fixed vocabulary — just a smarter dictionary. GPT-2 would carve
+        &quot;emma&quot; into one or two tokens, not four. Real models also carry several
+        special tokens (end-of-text, message separators), not a single BOS.
+      </Aside>
 
       <Recap
         chapterId={1}
