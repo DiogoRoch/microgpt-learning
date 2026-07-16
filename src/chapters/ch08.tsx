@@ -4,10 +4,10 @@
  * drawn), the real m/v/m̂/v̂ numbers across the first three golden steps, and
  * an Adam-vs-SGD playground on a bumpy loss surface.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { PredictReveal, Recap } from '../components/Quiz.tsx'
+import { NumericGuess, PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
 import { Term } from '../components/Term.tsx'
 import { Aside } from '../components/Aside.tsx'
 import { K } from '../components/Katex.tsx'
@@ -40,7 +40,7 @@ const OFFSETS = (() => {
 const uchars: string[] = tokenizerGolden.uchars
 const tokenName = (r: number) => (r === 26 ? "'·' BOS" : `'${uchars[r]}'`)
 
-function GradField() {
+function GradField({ onSelectKey }: { onSelectKey: (key: string) => void }) {
   const [key, setKey] = useState('wte')
   const { setHighlight } = useCodeSync()
   const [rows, cols] = SHAPES[key]!
@@ -50,7 +50,10 @@ function GradField() {
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={key}
-          onChange={(e) => setKey(e.target.value)}
+          onChange={(e) => {
+            setKey(e.target.value)
+            onSelectKey(e.target.value)
+          }}
           className="rounded border border-ink/20 bg-white px-2 py-1 font-mono text-xs"
           aria-label="matrix whose gradients to display"
         >
@@ -163,12 +166,13 @@ function AdamInspector() {
 }
 
 /** Adam vs SGD on a bumpy 1-D loss surface. */
-function AdamPlayground() {
+function AdamPlayground({ onBeta1 }: { onBeta1: (b: number) => void }) {
   const [lr, setLr] = useState(0.15)
   const [beta1, setBeta1] = useState(0.85)
   const [beta2, setBeta2] = useState(0.99)
   const [decay, setDecay] = useState(true)
   const { setHighlight } = useCodeSync()
+  useEffect(() => onBeta1(beta1), [beta1, onBeta1])
 
   const f = (w: number) => 0.4 * (w - 1.5) ** 2 + 0.35 * Math.sin(4 * w) + 0.6
   const df = (w: number) => 0.8 * (w - 1.5) + 1.4 * Math.cos(4 * w)
@@ -253,6 +257,10 @@ function AdamPlayground() {
 const chapter = CHAPTERS[8]!
 
 export default function Ch08() {
+  const [wpeSeen, setWpeSeen] = useState(false)
+  const onSelectKey = useMemo(() => (k: string) => setWpeSeen((s) => s || k === 'wpe'), [])
+  const [momentumOff, setMomentumOff] = useState(false)
+  const onBeta1 = useMemo(() => (b: number) => setMomentumOff((s) => s || b === 0), [])
   return (
     <ChapterFrame chapter={chapter}>
       <p>
@@ -264,7 +272,36 @@ export default function Ch08() {
       </p>
 
       <h2>The gradient field, step 0</h2>
-      <GradField />
+      <GradField onSelectKey={onSelectKey} />
+
+      <TryIt
+        qid="ch8-wpe-field"
+        task={<>Switch the gradient field to <code>wpe</code> and find the rows that got no gradient at all.</>}
+        done={wpeSeen}
+        payoff={
+          <>
+            Rows 7–15 are exactly zero: step 0&apos;s document &quot;yuheng&quot; has only
+            n = 7 positions, so position embeddings 7–15 never entered the forward pass —
+            and what never participates gets no blame. Gradient sparsity here isn&apos;t
+            numerical noise; it&apos;s the shape of the data.
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch8-sparse"
+        question={<>At step 0, only 3,728 of 4,192 gradients are nonzero. Where are the 464 zeros?</>}
+        options={['numerical underflow', "wte rows of letters not in the doc + wpe rows past the doc's length", 'the attention matrices']}
+        answerIndex={1}
+        hint={<>You just found half of them in wpe. Which other matrix has one row per <em>token</em> — and how many tokens does &quot;yuheng&quot; actually use?</>}
+        explanation={
+          <>
+            Gradient only flows through nodes that participated in the forward pass.
+            &quot;yuheng&quot; touches 6 letters + BOS → 20 unused wte rows (320 params),
+            and n = 7 → 9 unused wpe rows (144 params). 320 + 144 = 464. You can count
+            the blank rows in the heatmap above.
+          </>
+        }
+      />
 
       <h2>Adam: gradient in, sized step out</h2>
       <p>
@@ -275,6 +312,37 @@ export default function Ch08() {
         normalized by the typical magnitude.
       </p>
       <AdamInspector />
+
+      <PredictReveal
+        qid="ch8-mhat"
+        question={<>At step 0 (t = 0), m = 0.15·g. What is m̂ after bias correction?</>}
+        options={['0.15·g', 'exactly g', '6.67·g²']}
+        answerIndex={1}
+        hint={<>Divide m by (1 − β₁ᵗ⁺¹) with β₁ = 0.85, t = 0. What cancels?</>}
+        explanation={
+          <>
+            m̂ = m / (1 − 0.85¹) = 0.15g / 0.15 = <strong>g</strong>. On the very first
+            step, bias-corrected Adam trusts the raw gradient completely — check the m̂
+            column in the real-numbers table above.
+          </>
+        }
+      />
+      <NumericGuess
+        qid="ch8-lr500"
+        question={<>Line 175 decays the learning rate linearly from 0.01 to 0. What is lr_t at step 500 of 1000?</>}
+        answer={0.01 * (1 - 500 / 1000)}
+        tolerance={0.00001}
+        placeholder="lr_t"
+        format={(v) => v.toFixed(3)}
+        hint={<>lr_t = 0.01 · (1 − step/1000). Step 500 is exactly halfway down the ramp.</>}
+        explanation={
+          <>
+            lr_t = 0.01 · (1 − 500/1000) = <strong>0.005</strong> — halfway down the
+            ramp to zero. Early steps take bold strides while the weights are noise; late
+            steps only fine-tune. You can read the lr_t column shrinking in the table above.
+          </>
+        }
+      />
 
       <Aside kind="math" title="Bias correction: why divide by (1 − βᵗ⁺¹)">
         <p>
@@ -287,7 +355,21 @@ export default function Ch08() {
       </Aside>
 
       <h2>Feel the hyperparameters</h2>
-      <AdamPlayground />
+      <AdamPlayground onBeta1={onBeta1} />
+
+      <TryIt
+        qid="ch8-momentum-off"
+        task={<>Kill the momentum: drag β₁ all the way to 0 and compare the two trajectories.</>}
+        done={momentumOff}
+        payoff={
+          <>
+            With β₁ = 0, m is just the current gradient — no memory, no coasting across
+            the little dips. Adam keeps only its v-normalization (per-parameter step
+            sizing), which still helps, but the ripple-crossing power came from momentum.
+            Slide β₁ back up and watch it sail past the bump that traps SGD.
+          </>
+        }
+      />
 
       <Aside kind="wild" title="The very same Adam trains the big ones">
         AdamW — Adam plus decoupled weight decay — is the default optimizer for
@@ -296,47 +378,6 @@ export default function Ch08() {
         0.85/0.99 suit its tiny, noisy one-doc batches). Linear decay to zero, line 175,
         is one of the two standard schedules (the other being cosine).
       </Aside>
-
-      <PredictReveal
-        qid="ch8-sparse"
-        question={<>At step 0, only 3,728 of 4,192 gradients are nonzero. Where are the 464 zeros?</>}
-        options={['numerical underflow', "wte rows of letters not in the doc + wpe rows past the doc's length", 'the attention matrices']}
-        answerIndex={1}
-        explanation={
-          <>
-            Gradient only flows through nodes that participated in the forward pass.
-            &quot;yuheng&quot; touches 6 letters + BOS → 20 unused wte rows (320 params),
-            and n = 7 → 9 unused wpe rows (144 params). 320 + 144 = 464. You can count
-            the blank rows in the heatmap above.
-          </>
-        }
-      />
-      <PredictReveal
-        qid="ch8-mhat"
-        question={<>At step 0 (t = 0), m = 0.15·g. What is m̂ after bias correction?</>}
-        options={['0.15·g', 'exactly g', '6.67·g²']}
-        answerIndex={1}
-        explanation={
-          <>
-            m̂ = m / (1 − 0.85¹) = 0.15g / 0.15 = <strong>g</strong>. On the very first
-            step, bias-corrected Adam trusts the raw gradient completely — check the m̂
-            column in the real-numbers table above.
-          </>
-        }
-      />
-      <PredictReveal
-        qid="ch8-lr500"
-        question={<>What is the learning rate at step 500 of 1000?</>}
-        options={['0.01', '0.005', '0.0005']}
-        answerIndex={1}
-        explanation={
-          <>
-            lr_t = 0.01 · (1 − 500/1000) = <strong>0.005</strong> — line 175&apos;s linear
-            decay, halfway down its ramp to zero. Early steps take bold strides while the
-            weights are noise; late steps only fine-tune.
-          </>
-        }
-      />
 
       <Recap
         chapterId={8}

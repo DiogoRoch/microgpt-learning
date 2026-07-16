@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { PredictReveal, Recap } from '../components/Quiz.tsx'
+import { PickLine, PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
 import { Term } from '../components/Term.tsx'
 import { Aside } from '../components/Aside.tsx'
 import { K } from '../components/Katex.tsx'
@@ -39,7 +39,7 @@ function QkvRow({ label, values, line, onSync }: { label: string; values: number
   )
 }
 
-function AttentionStepper({ trace }: { trace: ExampleTrace }) {
+function AttentionStepper({ trace, onHeadVisit }: { trace: ExampleTrace; onHeadVisit: (h: number) => void }) {
   const player = useStepPlayer(trace.n, 0.8)
   const [head, setHead] = useState(0)
   const { setHighlight } = useCodeSync()
@@ -103,7 +103,10 @@ function AttentionStepper({ trace }: { trace: ExampleTrace }) {
                 type="button"
                 role="radio"
                 aria-checked={head === i}
-                onClick={() => setHead(i)}
+                onClick={() => {
+                  setHead(i)
+                  onHeadVisit(i)
+                }}
                 className="rounded px-2 py-0.5 font-mono text-[11px]"
                 style={{ background: head === i ? 'var(--ink)' : 'transparent', color: head === i ? 'var(--paper)' : 'var(--muted)' }}
               >
@@ -153,7 +156,7 @@ function AttentionStepper({ trace }: { trace: ExampleTrace }) {
 }
 
 /** The equivalence toggle: incremental (as the file runs) ⇄ matrix + mask. */
-function MaskEquivalence({ trace }: { trace: ExampleTrace }) {
+function MaskEquivalence({ trace, onMode }: { trace: ExampleTrace; onMode: (m: 'incremental' | 'matrix') => void }) {
   const [mode, setMode] = useState<'incremental' | 'matrix'>('incremental')
   const [head, setHead] = useState(0)
   const { setHighlight } = useCodeSync()
@@ -181,7 +184,10 @@ function MaskEquivalence({ trace }: { trace: ExampleTrace }) {
               type="button"
               role="radio"
               aria-checked={mode === m}
-              onClick={() => setMode(m)}
+              onClick={() => {
+                setMode(m)
+                onMode(m)
+              }}
               className="rounded-md px-3 py-1 font-mono text-xs"
               style={{ background: mode === m ? 'var(--ink)' : 'transparent', color: mode === m ? 'var(--paper)' : 'var(--muted)' }}
             >
@@ -330,6 +336,10 @@ export default function Ch05() {
   const example = useAppStore((s) => s.example)
   const step = useAppStore((s) => s.checkpointStep)
   const trace = useTrace(example, step)
+  const [headsSeen, setHeadsSeen] = useState<ReadonlySet<number>>(new Set([0]))
+  const [modesSeen, setModesSeen] = useState<ReadonlySet<string>>(new Set(['incremental']))
+  const onHeadVisit = useMemo(() => (h: number) => setHeadsSeen((s) => (s.has(h) ? s : new Set(s).add(h))), [])
+  const onMode = useMemo(() => (m: string) => setModesSeen((s) => (s.has(m) ? s : new Set(s).add(m))), [])
 
   return (
     <ChapterFrame chapter={chapter}>
@@ -349,7 +359,36 @@ export default function Ch05() {
         <Term t="KV cache">KV cache</Term> <em>grows</em>. That growth is the fact around
         which this whole chapter orbits.
       </p>
-      {trace ? <AttentionStepper trace={trace} /> : <p className="font-mono text-sm text-muted">loading…</p>}
+      {trace ? <AttentionStepper trace={trace} onHeadVisit={onHeadVisit} /> : <p className="font-mono text-sm text-muted">loading…</p>}
+
+      <TryIt
+        qid="ch5-four-heads"
+        task={<>Scrub to the last position, then look through all four heads. Same q, k, v vectors — four different 4-dim slices of them.</>}
+        done={headsSeen.size >= 4}
+        payoff={
+          <>
+            Each head runs the whole score → softmax → blend pipeline on its own quarter of
+            the vectors, so each can learn a different <em>kind</em> of looking — one might
+            track the previous letter, another the start of the name. Their four outputs are
+            just concatenated (x_attn) and mixed by attn_wo.
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch5-pos0"
+        question={<>At position 0, what are the attention weights — in every head, at any training step?</>}
+        options={['[1.0] exactly', 'uniform over 16 slots', 'depends on the weights']}
+        answerIndex={0}
+        hint={<>How many keys exist in the cache when position 0 runs? What does softmax do to a list of one?</>}
+        explanation={
+          <>
+            One key exists, so softmax runs over a single logit: e^z / e^z = 1,
+            whatever the logit&apos;s value. The parameters are irrelevant. This is
+            pinned as an engine test in this app — and you can verify it by scrubbing the
+            stepper to pos 0.
+          </>
+        }
+      />
 
       <Aside kind="math" title="The scaling: why divide by √head_dim">
         <p>
@@ -362,6 +401,22 @@ export default function Ch05() {
         </p>
       </Aside>
 
+      <PredictReveal
+        qid="ch5-no-scale"
+        question={<>Delete the /√head_dim on line 129. What happens to the attention weights?</>}
+        options={['they stop summing to 1', 'distributions get peakier — winners take nearly all', 'nothing — softmax normalizes anyway']}
+        answerIndex={1}
+        hint={<>Softmax always normalizes. But it&apos;s <em>exponential</em> in the logits — what does doubling their spread do to the ratios?</>}
+        explanation={
+          <>
+            Softmax still normalizes (they always sum to 1) — but the <em>spread</em> of
+            the logits doubles, and softmax is exponential in that spread: e² ≈ 7.4× ratio
+            per 2 units of logit gap instead of e ≈ 2.7×. Sharper weights mean tiny
+            gradients for every non-winner — harder training, same math.
+          </>
+        }
+      />
+
       <h2>Where&apos;s the mask? There is no mask</h2>
       <p>
         Every attention tutorial shows a T×T matrix with its upper triangle crossed out —
@@ -370,10 +425,44 @@ export default function Ch05() {
         <em>incrementally</em>: at position t, the lists <code>keys[li]</code> and{' '}
         <code>values[li]</code> contain exactly t+1 entries.{' '}
         <strong>You cannot attend to a key that hasn&apos;t been appended yet.</strong>{' '}
-        Causality isn&apos;t enforced; it&apos;s inherited from time itself. Toggle
-        between the two pictures — the numbers don&apos;t change:
+        Causality isn&apos;t enforced; it&apos;s inherited from time itself.
       </p>
-      {trace ? <MaskEquivalence trace={trace} /> : null}
+
+      <PickLine
+        qid="ch5-causal-line"
+        question={<>A textbook implementation would add one extra line just before the softmax: <code>attn_logits[future] = −inf</code>. Click the line of this file that makes that line unnecessary.</>}
+        lines={[118, 121, 129, 130]}
+        answer={121}
+        hint={<>Don&apos;t look for where the future is <em>hidden</em> — find where the past is <em>built</em>, one entry per call.</>}
+        explanation={
+          <>
+            <code>keys[li].append(k)</code> (with its twin on 122 for values): the cache
+            grows by exactly one entry per position, so when line 127 slices{' '}
+            <code>keys[li]</code>, positions &gt; t simply aren&apos;t in the list. The
+            future isn&apos;t masked out — it hasn&apos;t happened. That one bookkeeping
+            decision is the entire causal structure of GPT.
+          </>
+        }
+      />
+
+      <p>
+        Toggle between the two pictures — the numbers don&apos;t change:
+      </p>
+      {trace ? <MaskEquivalence trace={trace} onMode={onMode} /> : null}
+
+      <TryIt
+        qid="ch5-mask-toggle"
+        task={<>Flip to the textbook &quot;matrix + mask&quot; view and back, watching the lower triangle.</>}
+        done={modesSeen.size >= 2}
+        payoff={
+          <>
+            Every number below the diagonal stayed identical. Masking with −∞ before
+            softmax computes <em>exactly</em> what the growing cache computes — the
+            textbook picture is a batching optimization for GPUs, not different math. When
+            people say &quot;causal attention,&quot; both of these are what they mean.
+          </>
+        }
+      />
 
       <Aside kind="wild" title="The matrix formulation (what GPT-2 actually executes)">
         <p>
@@ -392,45 +481,19 @@ export default function Ch05() {
       <FreePlay />
 
       <PredictReveal
-        qid="ch5-pos0"
-        question={<>At position 0, what are the attention weights — in every head, at any training step?</>}
-        options={['[1.0] exactly', 'uniform over 16 slots', 'depends on the weights']}
-        answerIndex={0}
-        explanation={
-          <>
-            One key exists, so softmax runs over a single logit: e^z / e^z = 1,
-            whatever the logit&apos;s value. The parameters are irrelevant. This is
-            pinned as an engine test in this app — and you can verify it by scrubbing the
-            stepper to pos 0.
-          </>
-        }
-      />
-      <PredictReveal
-        qid="ch5-no-mask"
-        question={<>Which line of microgpt.py implements the causal mask?</>}
-        options={['line 129 (the scores)', 'line 130 (the softmax)', 'no line — the cache makes it unnecessary']}
-        answerIndex={2}
-        explanation={
-          <>
-            Lines 127–128 slice <code>keys[li]</code>/<code>values[li]</code>, which hold
-            only positions ≤ t because line 121–122 appends one entry per call. The
-            future isn&apos;t hidden — it doesn&apos;t exist yet. The −∞ mask in the
-            textbook picture produces identical numbers by <em>removing</em> what this
-            code never computes.
-          </>
-        }
-      />
-      <PredictReveal
-        qid="ch5-no-scale"
-        question={<>Delete the /√head_dim on line 129. What happens to the attention weights?</>}
-        options={['they stop summing to 1', 'distributions get peakier — winners take nearly all', 'nothing — softmax normalizes anyway']}
+        qid="ch5-frozen-rows"
+        question={<>When position t+1 arrives and attention runs again, what happens to the weights that position t computed?</>}
+        options={['they are recomputed over the longer cache', 'nothing — row t is finished history', 'they renormalize to include the new key']}
         answerIndex={1}
+        hint={<>You saw this in chapter 4&apos;s ripple chart, from the other side. Does anything computed at position t ever run again?</>}
         explanation={
           <>
-            Softmax still normalizes (they always sum to 1) — but the <em>spread</em> of
-            the logits doubles, and softmax is exponential in that spread: e² ≈ 7.4× ratio
-            per 2 units of logit gap instead of e ≈ 2.7×. Sharper weights mean tiny
-            gradients for every non-winner — harder training, same math.
+            Row t was computed at time t, used to build that position&apos;s output, and is
+            never touched again — the new position computes only its <em>own</em> row over
+            the now-longer cache. That&apos;s why the matrices above are triangles of
+            frozen history, and why chapter 4&apos;s embedding edit couldn&apos;t reach
+            backwards. (Batched training recomputes all rows each step — but within one
+            forward pass, same story.)
           </>
         }
       />

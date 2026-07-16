@@ -70,3 +70,6 @@ npm run lint                    # eslint
   server (port 5199) and fail on console errors.
 - `node tools/test_training.mjs <out.png>` — drives chapter 9's real train button in
   Chromium and asserts the 1000-step run completes.
+- `node tools/test_checkpoints.mjs` — drives the checkpoint system (MCQ retry, numeric
+  nudges, PickLine, TryIt, persistence) end-to-end; content-coupled, so update it when
+  rewording the questions it exercises.

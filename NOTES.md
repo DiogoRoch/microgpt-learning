@@ -220,3 +220,45 @@ Newest entries first within each phase.
 - **Verified.** A Playwright script clicking through five distinct minimap regions saw the
   `loading chapter…` fallback **zero** times and reported no console errors; full test
   suite (44) still green.
+
+## Curriculum & checkpoint rework (user request: better learning experience, more interactivity)
+
+- **Why.** The original PredictReveal never *checked* the answer: any pick + "reveal"
+  counted, so a chapter could be "completed" without engaging. No retry, no feedback
+  loop, no per-question persistence; every question was a same-shape 3-option MCQ,
+  stacked at the end of the chapter; ch11 had no questions at all; the (excellent)
+  widgets were never *required* — nothing ever asked the reader to do anything in them.
+- **Checkpoint engine (Quiz.tsx rework).** Answers are judged on commit. Wrong picks
+  are eliminated (struck through, disabled) and surface an optional `hint`; the reader
+  retries until correct; the explanation appears only on resolve. Four kinds share one
+  card shell:
+  - `PredictReveal` — multiple choice, click-to-commit (no separate reveal button);
+  - `NumericGuess` — typed number with tolerance, too-high/too-low/very-close nudges,
+    and a "show me" mercy after 3 misses (recorded as `revealed`, still resolves);
+  - `TryIt` — a hands-on task verified *from real widget state* via a `done` prop
+    (no honor system): train-to-step-1000, scrub-to-the-hardest-position, β₁ = 0,
+    temperature ≤ 0.1, visit-every-position, both mask views, wpe grad field…;
+  - `PickLine` — click the actual line of microgpt.py (rendered by the app's own
+    highlighter) that does the thing; e.g. ch5's "which line makes a causal mask
+    unnecessary" → `keys[li].append(k)`.
+- **Progress & persistence.** Results live in the store (`quiz: qid → {status, misses}`,
+  localStorage). A chapter auto-completes when every mounted checkpoint resolves;
+  `CheckpointMeter` (dots, in the chapter header) shows live progress; Recap reports
+  the first-try score. Previously-persisted `completed` chapters are honored — the new
+  `quiz` map just defaults to empty, and completion is never revoked.
+- **Question policy.** Checkpoints are interleaved directly after the section they
+  test (was: end-block), so prediction happens at the moment of encounter. Counts grew
+  ~33 → 56 across the twelve chapters; every chapter has ≥ 1 wired TryIt. Numeric
+  answers are computed, never hardcoded: ch2's asks the real scalar engine
+  (x·x + x at x = 5 → x.grad), ch1's uses `tok.uchars.indexOf('m')`, ch7's is
+  `Math.log(100)`, ch11's read `facts.numParams` / `facts.finalLossPython`; ch6's
+  dead-neuron payoff counts zeros in the live trained trace.
+- **ch11 gauntlet.** The playground now ends the course with 7 checkpoints: one live
+  measurement (checkpoint slider → step 0 → doc loss ≈ ln 27, reported from the real
+  trace) plus six synthesis questions spanning tokenizer → loop → sampling — so the
+  final chapter completes by mastery like all the others.
+- **Verified.** 44/44 tests green (engine untouched), typecheck + eslint clean, and a
+  Playwright pass exercising the new mechanics end-to-end: wrong→hint→retry→solve for
+  MCQ/numeric/line kinds, meter counting, persistence across reload, TryIt firing from
+  a stepped widget, and tools/test_training.mjs (1000 live steps in 1.31 s) proving the
+  ch9 train-button TryIt completes. Screenshots: ch0/1/2/5/9/11 (no console errors).

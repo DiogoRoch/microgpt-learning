@@ -3,10 +3,10 @@
  * activations (watch neurons die live), and the residual stream as the spine
  * everything reads from and writes to.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { PredictReveal, Recap } from '../components/Quiz.tsx'
+import { NumericGuess, PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
 import { Term } from '../components/Term.tsx'
 import { Aside } from '../components/Aside.tsx'
 import { CompareToggle } from '../components/Compare.tsx'
@@ -47,13 +47,16 @@ function NeuronStrip({ pre, post }: { pre: number[]; post: number[] }) {
   )
 }
 
-function MlpStepper() {
+function MlpStepper({ onView }: { onView: (pos: number, step: number) => void }) {
   const example = useAppStore((s) => s.example)
   const step = useAppStore((s) => s.checkpointStep)
   const trace = useTrace(example, step)
   const player = useStepPlayer(trace?.n ?? 1, 1)
   const { setHighlight } = useCodeSync()
   useEffect(() => setHighlight([136, 137, 138, 139, 140, 141]), [setHighlight, player.index])
+  useEffect(() => {
+    if (trace) onView(Math.min(player.index, trace.n - 1), step)
+  }, [trace, player.index, step, onView])
 
   if (!trace) return <p className="font-mono text-sm text-muted">loading…</p>
   const pos = Math.min(player.index, trace.n - 1)
@@ -149,6 +152,18 @@ function ResidualSpine() {
 const chapter = CHAPTERS[6]!
 
 export default function Ch06() {
+  const example = useAppStore((s) => s.example)
+  const trainedTrace = useTrace(example, 1000)
+  const [bosSeen, setBosSeen] = useState(false)
+  const onView = useMemo(
+    () => (pos: number, step: number) => {
+      if (pos === 0 && step === 1000) setBosSeen(true)
+    },
+    [],
+  )
+  const deadAtBos = trainedTrace
+    ? trainedTrace.calls[0]!.layers[0]!.relu.filter((v) => v === 0).length
+    : null
   return (
     <ChapterFrame chapter={chapter}>
       <p>
@@ -166,7 +181,45 @@ export default function Ch06() {
         The ×-marked cells are silent neurons — try the untrained/trained toggle and watch
         the firing pattern reorganize:
       </p>
-      <MlpStepper />
+      <MlpStepper onView={onView} />
+
+      <TryIt
+        qid="ch6-dead-at-bos"
+        task={<>Set the toggle to <strong>trained</strong> and scrub to position 0 — the BOS token. Count the ×-marks.</>}
+        done={bosSeen}
+        payoff={
+          <>
+            {deadAtBos != null ? (
+              <>
+                <strong>{deadAtBos} of 64 neurons are silent</strong> for BOS at pos 0 — a
+                real, slightly alarming number straight from the trained weights, not a
+                bug.
+              </>
+            ) : (
+              <>Almost every neuron is silent for BOS at pos 0 — a real number straight from the trained weights, not a bug.</>
+            )}{' '}
+            BOS at position 0 carries almost no information (&quot;a name is starting&quot;),
+            so the trained MLP has learned it has nothing to add there — the residual
+            stream just carries x through. Sparse firing is the normal regime for ReLU
+            networks, not a failure.
+          </>
+        }
+      />
+      <NumericGuess
+        qid="ch6-fc1-params"
+        question={<>How many parameters does mlp_fc1 hold? (It expands 16 dims to 4×16 = 64 neurons.)</>}
+        answer={64 * 16}
+        placeholder="count"
+        format={(v) => v.toLocaleString()}
+        hint={<>A matrix that maps 16 numbers to 64 numbers needs 64 rows of 16 weights.</>}
+        explanation={
+          <>
+            matrix(4·n_embd, n_embd) = 64×16 = <strong>1,024</strong> — and fc2 mirrors it
+            with 16×64. Together they&apos;re 2,048 of the 4,192 total: about half the
+            model is MLP (you saw this in chapter 3&apos;s treemap).
+          </>
+        }
+      />
 
       <h2>The spine</h2>
       <p>
@@ -185,38 +238,35 @@ export default function Ch06() {
         in a 96-layer GPT it&apos;s the reason gradients survive the trip at all.
       </p>
 
-      <Aside kind="wild" title="GeLU, gating, and 4×">
-        GPT-2 uses GeLU (a smooth ReLU) — microgpt&apos;s ReLU is the honest simplification,
-        stated on line 93. Modern models often use gated variants (SwiGLU). The 4×
-        expansion ratio (16 → 64 here, 768 → 3072 in GPT-2) is a convention that has
-        survived essentially unchanged since the original transformer — and in both cases
-        the MLP holds about two-thirds of the non-embedding parameters.
-      </Aside>
-
-      <PredictReveal
-        qid="ch6-fc1-params"
-        question={<>How many parameters does mlp_fc1 hold?</>}
-        options={['256', '1,024', '4,096']}
-        answerIndex={1}
-        explanation={
-          <>
-            matrix(4·n_embd, n_embd) = 64×16 = <strong>1,024</strong> — and fc2 mirrors it
-            with 16×64. Together they&apos;re 2,048 of the 4,192 total: about half the
-            model is MLP (you saw this in chapter 3&apos;s treemap).
-          </>
-        }
-      />
       <PredictReveal
         qid="ch6-all-dead"
         question={<>Suppose at some position all 64 ReLU outputs are 0. What does the MLP block contribute there?</>}
         options={['a zero vector — x passes through unchanged', 'x gets zeroed', 'an error: softmax of nothing']}
         answerIndex={0}
+        hint={<>Follow the wire: fc2 of a zero vector is…? And then line 141 <em>adds</em> it to what?</>}
         explanation={
           <>
             fc2 of a zero vector is zero, and line 141 adds zero to x_residual:{' '}
             <strong>x continues exactly as it was</strong>. The residual design makes
             &quot;do nothing&quot; the easiest thing a block can learn — a safe default
-            that&apos;s also why deep stacks of these blocks train stably.
+            that&apos;s also why deep stacks of these blocks train stably. You met a
+            near-total-silence position in the task above; nothing broke.
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch6-cut-residual"
+        question={<>Vandalize line 141: replace the addition with plain x = (MLP output). What breaks first when you train?</>}
+        options={['gradients to early layers weaken drastically', 'the parameter count changes', 'softmax stops summing to 1']}
+        answerIndex={0}
+        hint={<>Chapter 2&apos;s shared-node picture: the residual is one of the two paths gradient flows through. Cut it and what remains?</>}
+        explanation={
+          <>
+            The straight-line highway from loss to embeddings is gone — every gradient must
+            now fight through the block&apos;s weights (and its dead ReLUs) at every layer.
+            In this 1-layer model you&apos;d limp along; stack 96 layers and nothing near
+            the bottom trains at all. The <code>+=</code> from chapter 2 isn&apos;t a nicety
+            — it is the reason deep transformers are trainable.
           </>
         }
       />
@@ -225,6 +275,7 @@ export default function Ch06() {
         question={<>rmsnorm is applied BEFORE each block (lines 117, 137), not after. What stays clean because of that?</>}
         options={['the block inputs and the residual path', 'the loss value', 'the parameter count']}
         answerIndex={0}
+        hint={<>Two things could get normalized: what goes <em>into</em> a block, and the stream itself. Which one does the file leave untouched?</>}
         explanation={
           <>
             Pre-norm gives every block a unit-scale input (whatever the stream has
@@ -235,6 +286,14 @@ export default function Ch06() {
           </>
         }
       />
+
+      <Aside kind="wild" title="GeLU, gating, and 4×">
+        GPT-2 uses GeLU (a smooth ReLU) — microgpt&apos;s ReLU is the honest simplification,
+        stated on line 93. Modern models often use gated variants (SwiGLU). The 4×
+        expansion ratio (16 → 64 here, 768 → 3072 in GPT-2) is a convention that has
+        survived essentially unchanged since the original transformer — and in both cases
+        the MLP holds about two-thirds of the non-embedding parameters.
+      </Aside>
 
       <Recap
         chapterId={6}

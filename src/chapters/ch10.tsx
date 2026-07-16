@@ -3,10 +3,10 @@
  * decision at a time; the temperature slider from near-argmax to chaos; and
  * batch generation with a novelty check against all 32,033 training names.
  */
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { PredictReveal, Recap } from '../components/Quiz.tsx'
+import { PickLine, PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
 import { Term } from '../components/Term.tsx'
 import { Aside } from '../components/Aside.tsx'
 import { CompareToggle } from '../components/Compare.tsx'
@@ -24,7 +24,7 @@ import namesJson from '../data/names.json'
 const nameSet = new Set<string>(namesJson.names)
 const BOS = tokenizer.bos
 
-function SamplingLab() {
+function SamplingLab({ onFinished, onTemp }: { onFinished: () => void; onTemp: (t: number) => void }) {
   const step = useAppStore((s) => s.checkpointStep)
   const model = useModelAt(step)
   const [temperature, setTemperature] = useState(0.5)
@@ -33,6 +33,10 @@ function SamplingLab() {
   const [lastPick, setLastPick] = useState<number | null>(null)
   const rngRef = useRef(new RNG(Date.now() & 0xffff))
   const { setHighlight } = useCodeSync()
+  useEffect(() => {
+    if (finished) onFinished()
+  }, [finished, onFinished])
+  useEffect(() => onTemp(temperature), [temperature, onTemp])
 
   // Fresh forward over the tokens so far → logits at the last position.
   const logits = useMemo(() => {
@@ -175,6 +179,10 @@ function BatchLab() {
 const chapter = CHAPTERS[10]!
 
 export default function Ch10() {
+  const [nameDone, setNameDone] = useState(false)
+  const onFinished = useMemo(() => () => setNameDone(true), [])
+  const [wentCold, setWentCold] = useState(false)
+  const onTemp = useMemo(() => (t: number) => setWentCold((s) => s || t <= 0.1), [])
   return (
     <ChapterFrame chapter={chapter}>
       <p>
@@ -187,7 +195,37 @@ export default function Ch10() {
       </p>
 
       <h2>One die roll at a time</h2>
-      <SamplingLab />
+      <SamplingLab onFinished={onFinished} onTemp={onTemp} />
+
+      <TryIt
+        qid="ch10-sample-name"
+        task={<>Birth a name: press <strong>sample next token</strong> until the model decides it&apos;s finished.</>}
+        done={nameDone}
+        payoff={
+          <>
+            The ending wasn&apos;t a rule firing — the model <em>predicted</em> BOS, the
+            same way it predicted every letter, because chapter 1&apos;s right-hand BOS
+            taught it what &quot;done&quot; looks like. Every chatbot you&apos;ve used ends
+            its turn with exactly this move.
+          </>
+        }
+      />
+
+      <PickLine
+        qid="ch10-stop-line"
+        question={<>Click the line that ends a generated name.</>}
+        lines={[193, 195, 197, 199]}
+        answer={197}
+        hint={<>Not the loop bound — that&apos;s just a ceiling. What does the model have to <em>say</em> for the name to end?</>}
+        explanation={
+          <>
+            <code>if token_id == BOS: break</code> — the stop is a <em>sampled token</em>,
+            checked on line 197. Line 193&apos;s <code>range(block_size)</code> is only a
+            hard ceiling (pos_id must stay within wpe&apos;s 16 rows); a well-trained model
+            almost never hits it.
+          </>
+        }
+      />
 
       <h2>What temperature actually does</h2>
       <p>
@@ -198,6 +236,35 @@ export default function Ch10() {
         you sample the model&apos;s honest beliefs; above 1, flatter than it believes.
         Drag the slider above mid-name and watch the same 27 logits reshape.
       </p>
+
+      <TryIt
+        qid="ch10-cold"
+        task={<>Freeze the dice: drop the temperature to 0.1 or below and watch the distribution above.</>}
+        done={wentCold}
+        payoff={
+          <>
+            Nearly all the probability mass piled onto one bar — sampling has become
+            argmax, and generation is now <em>deterministic</em>: restart and sample again
+            and you&apos;ll walk the same greedy path to the same name every time. That&apos;s
+            the whole creativity dial: T reshapes this one distribution before each die roll.
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch10-t0"
+        question={<>At temperature ≈ 0, you generate 5 names in a row (same weights). What do you get?</>}
+        options={['5 random names', 'the same name, 5 times', 'empty strings']}
+        answerIndex={1}
+        hint={<>You just made the distribution collapse onto its favorite. Is there anything left for the die roll to decide?</>}
+        explanation={
+          <>
+            As T → 0 the softmax collapses onto the argmax: every die roll has one
+            outcome, so generation is fully deterministic — same start (BOS), same
+            greedy path, same name, every time. Try it in the batch lab below: slider to
+            0.05, then ↻ — twenty copies of one name.
+          </>
+        }
+      />
 
       <Aside kind="math" title="Temperature in one line">
         softmax(z/T)ᵢ ∝ e^(zᵢ/T) = (e^zᵢ)^(1/T) — raising probabilities to the power 1/T
@@ -222,38 +289,11 @@ export default function Ch10() {
       </Aside>
 
       <PredictReveal
-        qid="ch10-t0"
-        question={<>Set temperature ≈ 0 and generate 5 names in a row. What happens?</>}
-        options={['5 random names', 'the same name, 5 times', 'empty strings']}
-        answerIndex={1}
-        explanation={
-          <>
-            As T → 0 the softmax collapses onto the argmax: every die roll has one
-            outcome, so generation is fully deterministic — same start (BOS), same
-            greedy path, same name, every time. Try it above: drop the slider to 0.05 and
-            press ↻ repeatedly.
-          </>
-        }
-      />
-      <PredictReveal
-        qid="ch10-stop"
-        question={<>What ends a generated name?</>}
-        options={['a length counter', 'the model samples BOS (or hits block_size 16)', 'the loss reaching 0']}
-        answerIndex={1}
-        explanation={
-          <>
-            Line 197: <code>if token_id == BOS: break</code>. Stopping is a{' '}
-            <em>prediction</em> the model learned from the right-hand BOS in training
-            (chapter 1&apos;s whole point). The for-loop&apos;s range(block_size) is just
-            a hard ceiling — pos_id must stay within wpe&apos;s 16 rows.
-          </>
-        }
-      />
-      <PredictReveal
         qid="ch10-novel"
         question={<>Of 20 generated names, how many are typically copies of training names?</>}
         options={['none — it always invents', 'a handful — short common patterns collide with real names', 'all 20 — it memorized']}
         answerIndex={1}
+        hint={<>Each training name was seen at most once — memorization is off the table. But what are the <em>most probable</em> letter patterns, by definition?</>}
         explanation={
           <>
             Check the * markers above: usually a few names (especially short ones like

@@ -8,7 +8,7 @@ import { GIST_URL, SOURCE_LINES } from '../code/source.ts'
 import { tokenizeSource, type Tok } from '../code/highlight.ts'
 import { useCodeSync } from './CodeSync.tsx'
 
-const TOKEN_COLORS: Record<Tok['kind'], string> = {
+export const TOKEN_COLORS: Record<Tok['kind'], string> = {
   kw: '#82B4E8',
   builtin: '#6FCDBD',
   str: '#E8C580',

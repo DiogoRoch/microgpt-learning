@@ -3,10 +3,10 @@
  * curve drawing itself, samples evolving from babble to names), plus the
  * precomputed 1000-step history for instant time-travel into any snapshot.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { PredictReveal, Recap } from '../components/Quiz.tsx'
+import { PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
 import { Aside } from '../components/Aside.tsx'
 import { useCodeSync } from '../components/CodeSync.tsx'
 import { LossCurve } from '../viz/LossCurve.tsx'
@@ -17,13 +17,16 @@ import { snapshotForStep } from '../data/loadRun.ts'
 import facts from '../data/facts.json'
 import docsGolden from '../../golden/docs.json'
 
-function LiveTraining() {
+function LiveTraining({ onTrained }: { onTrained: () => void }) {
   const trainer = useTrainer()
   const { setHighlight } = useCodeSync()
   const [pace, setPace] = useState<'watch' | 'flat-out'>('watch')
 
   const busy = trainer.training
   const done = trainer.step >= 1000
+  useEffect(() => {
+    if (done) onTrained()
+  }, [done, onTrained])
 
   return (
     <div className="not-prose my-4 space-y-3 rounded-lg border border-ink/15 bg-white/60 p-4" onMouseEnter={() => setHighlight([151, 152, 153, 184])}>
@@ -97,11 +100,12 @@ function LiveTraining() {
   )
 }
 
-function TimeTravel() {
+function TimeTravel({ onScrub }: { onScrub: (step: number) => void }) {
   const run = useRun()
   const [step, setStep] = useState(1000)
   const model = useModelAt(step)
   const { setHighlight } = useCodeSync()
+  useEffect(() => onScrub(step), [step, onScrub])
   const snap = run ? snapshotForStep(run, step) : null
   const wte = useMemo(() => (model ? [...model.sd['wte']!.data] : null), [model])
 
@@ -148,6 +152,10 @@ function TimeTravel() {
 const chapter = CHAPTERS[9]!
 
 export default function Ch09() {
+  const [trained, setTrained] = useState(false)
+  const onTrained = useMemo(() => () => setTrained(true), [])
+  const [earlyVisited, setEarlyVisited] = useState(false)
+  const onScrub = useMemo(() => (step: number) => setEarlyVisited((s) => s || step <= 100), [])
   return (
     <ChapterFrame chapter={chapter}>
       <p>
@@ -162,7 +170,21 @@ export default function Ch09() {
         This button runs the complete algorithm — the same initial weights and the same
         document order as the Python file, in a Web Worker:
       </p>
-      <LiveTraining />
+      <LiveTraining onTrained={onTrained} />
+      <TryIt
+        qid="ch9-train"
+        task={<>Do the thing this whole app is about: press <strong>▶ train the real model</strong> and take it to step 1000. (Watchable pace ≈ 20 s; flat out ≈ 1 s.)</>}
+        done={trained}
+        payoff={
+          <>
+            You just ran the complete GPT training algorithm — same initial weights, same
+            document order as Karpathy&apos;s file — inside a browser tab. The curve
+            started at ln 27 exactly as chapter 7 predicted, and the samples went from
+            alphabet soup to name-shaped. That&apos;s the entire mystery of &quot;training&quot;,
+            executed in front of you.
+          </>
+        }
+      />
       <p>
         Watch the first seconds: the curve starts at the ln 27 line (chapter 7&apos;s
         prediction, now measured) and the early samples are alphabet soup. Structure
@@ -170,13 +192,42 @@ export default function Ch09() {
         into a noisy grind. The wiggle never goes away: every step grades a{' '}
         <em>different single name</em>, and some names are simply harder.
       </p>
+      <PredictReveal
+        qid="ch9-wiggle"
+        question={<>Why does the loss curve wiggle instead of descending smoothly?</>}
+        options={['floating-point noise', 'each step grades one different document', 'Adam adds randomness']}
+        answerIndex={1}
+        hint={<>After seed 42, nothing random happens during training. What <em>does</em> change from one step to the next?</>}
+        explanation={
+          <>
+            There is no randomness after init — the wiggle is the <em>data</em>. Step
+            grades &quot;sophia&quot; (easy, common patterns), next step grades
+            &quot;xzavier&quot; (hard). One-doc losses jump around a slowly falling
+            average. Batched training smooths this by averaging many documents per step.
+          </>
+        }
+      />
 
       <h2>Time travel</h2>
       <p>
         The shipped history of the exact reference run, one snapshot every 25 steps —
         scrub it:
       </p>
-      <TimeTravel />
+      <TimeTravel onScrub={onScrub} />
+      <TryIt
+        qid="ch9-early"
+        task={<>Scrub the curve back into the first 100 steps and read that snapshot&apos;s samples.</>}
+        done={earlyVisited}
+        payoff={
+          <>
+            Most of the visible learning happened embarrassingly early: by step ~100 the
+            gibberish already has vowels in the right places, and the loss has done the
+            bulk of its falling. The remaining 900 steps buy the slow, grinding last ~0.5
+            of loss — the part that turns &quot;name-ish noise&quot; into
+            &quot;kana&quot; and &quot;alerin&quot;.
+          </>
+        }
+      />
 
       <Aside kind="wild" title="What's different at real scale">
         Batches (thousands of documents per step, gradients averaged), epochs (multiple
@@ -187,24 +238,11 @@ export default function Ch09() {
       </Aside>
 
       <PredictReveal
-        qid="ch9-wiggle"
-        question={<>Why does the loss curve wiggle instead of descending smoothly?</>}
-        options={['floating-point noise', 'each step grades one different document', 'Adam adds randomness']}
-        answerIndex={1}
-        explanation={
-          <>
-            There is no randomness after init — the wiggle is the <em>data</em>. Step
-            grades &quot;sophia&quot; (easy, common patterns), next step grades
-            &quot;xzavier&quot; (hard). One-doc losses jump around a slowly falling
-            average. Batched training smooths this by averaging many documents per step.
-          </>
-        }
-      />
-      <PredictReveal
         qid="ch9-repeats"
         question={<>Does the model ever see the same name twice during its 1000 steps?</>}
         options={['yes — it cycles every 100 names', 'no — 1000 steps < 32,033 names', 'yes — shuffling repeats names']}
         answerIndex={1}
+        hint={<>Line 156: <code>docs[step % len(docs)]</code>, with 32,033 docs. When does the modulo first wrap around?</>}
         explanation={
           <>
             <code>docs[step % len(docs)]</code> with len(docs) = 32,033 and only 1000
@@ -219,6 +257,7 @@ export default function Ch09() {
         question={<>Train for 100× longer (100,000 steps). Does the loss reach 0?</>}
         options={['yes, eventually', 'no — it flattens well above 0', 'only with a bigger vocab']}
         answerIndex={1}
+        hint={<>Chapter 7&apos;s perfect-loss question is lurking here: can any model put p = 1.0 on the first letter of a name?</>}
         explanation={
           <>
             Names are partly irreducible coin flips: after &quot;ma&quot;, both

@@ -153,8 +153,12 @@ Brief §10 adopted as written: 0 big picture · 1 data/tokenizer · 2 autograd �
 3 parameters · 4 embeddings · 5 attention (centerpiece, incl. mask-equivalence morph) ·
 6 MLP/residual stream · 7 loss · 8 backward/Adam · 9 training (live worker + scrubbable
 precomputed run) · 10 inference/temperature · 11 playground. Every chapter:
-hook → interactive core → CodePanel with the exact lines → recap + 2–3 PredictReveal
-questions. Running example threaded throughout: **emma**.
+hook → interactive core → CodePanel with the exact lines → **checkpoints interleaved at
+the moment of teaching** (4–7 per chapter; see NOTES.md "Curriculum & checkpoint
+rework") → recap with a first-try score. Checkpoints are judged, not just revealed:
+multiple-choice with retry + hints, computed numeric answers, hands-on TryIt tasks
+verified from live widget state, and find-the-line picks over the real source. Chapter
+11 closes with a cross-chapter gauntlet. Running example threaded throughout: **emma**.
 
 ## Phases
 

@@ -9,7 +9,7 @@ import { useAppStore } from '../app/store.ts'
 import { CodePanel } from './CodePanel.tsx'
 import { CodeSyncProvider } from './CodeSync.tsx'
 import { Minimap } from './Minimap.tsx'
-import { QuizProvider } from './Quiz.tsx'
+import { CheckpointMeter, QuizProvider } from './Quiz.tsx'
 
 export function ChapterFrame({
   chapter, children, hideCodePanel = false, fullFileCode = false,
@@ -40,6 +40,7 @@ export function ChapterFrame({
             </div>
             <h1 className="font-display mt-1 text-4xl font-semibold tracking-tight">{chapter.title}</h1>
             <p className="mt-2 max-w-xl text-lg text-muted">{chapter.subtitle}</p>
+            <CheckpointMeter />
           </header>
 
           <div

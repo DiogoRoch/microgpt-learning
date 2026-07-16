@@ -3,10 +3,11 @@
  * any intermediate anywhere in the network, batch export — and the closing
  * screen: the full source, every line now conquered.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CHAPTERS, TOTAL_LINES, lineOwners } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { Recap } from '../components/Quiz.tsx'
+import { NumericGuess, PickLine, PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
+import facts from '../data/facts.json'
 import { CodePanel } from '../components/CodePanel.tsx'
 import { StepPlayer, useStepPlayer } from '../components/StepPlayer.tsx'
 import { TokenTape } from '../components/TokenTape.tsx'
@@ -19,7 +20,7 @@ import { useAppStore } from '../app/store.ts'
 import { labelOf, tokenizer, traceWord, useModelAt, useRun, VOCAB_LABELS } from '../app/useModel.ts'
 import { RNG } from '../engine/rng.ts'
 
-function Inspector() {
+function Inspector({ onAtZero }: { onAtZero: (loss: number) => void }) {
   const [word, setWord] = useState('emma')
   const [checkpoint, setCheckpoint] = useState(1000)
   const run = useRun()
@@ -27,6 +28,9 @@ function Inspector() {
   const cleaned = useMemo(() => [...word.toLowerCase()].filter((c) => tokenizer.isInVocab(c)).join('').slice(0, 14), [word])
   const trace = useMemo(() => (model && cleaned ? traceWord(model, cleaned) : null), [model, cleaned])
   const player = useStepPlayer(trace?.n ?? 1, 1)
+  useEffect(() => {
+    if (checkpoint === 0 && trace) onAtZero(trace.loss)
+  }, [checkpoint, trace, onAtZero])
 
   const STAGES = [
     'tok_emb', 'pos_emb', 'x_emb_sum', 'x_emb_norm', 'x_ln_attn', 'q', 'k', 'v',
@@ -211,6 +215,8 @@ function ClosingFile() {
 const chapter = CHAPTERS[11]!
 
 export default function Ch11() {
+  const [zeroLoss, setZeroLoss] = useState<number | null>(null)
+  const onAtZero = useMemo(() => (loss: number) => setZeroLoss((z) => z ?? loss), [])
   return (
     <ChapterFrame chapter={chapter} hideCodePanel>
       <p>
@@ -219,7 +225,126 @@ export default function Ch11() {
       </p>
 
       <h2>Inspect anything</h2>
-      <Inspector />
+      <Inspector onAtZero={onAtZero} />
+
+      <TryIt
+        qid="ch11-zero-loss"
+        task={<>One last experiment: drag the checkpoint slider all the way back to step 0 and read the doc loss.</>}
+        done={zeroLoss != null}
+        payoff={
+          <>
+            {zeroLoss != null ? (
+              <>
+                Doc loss {fmt(zeroLoss)} — right at ln 27 ≈ 3.296, for <em>any</em> word
+                you type.
+              </>
+            ) : (
+              <>Right at ln 27 ≈ 3.296, for <em>any</em> word you type.</>
+            )}{' '}
+            You predicted this number in chapter 7, watched training escape it in chapter
+            9, and here it is again from the untrained weights — the full circle, measured
+            live.
+          </>
+        }
+      />
+
+      <h2>The gauntlet</h2>
+      <p>
+        Twelve chapters ago this file was a wall of code. Prove it isn&apos;t anymore —
+        six questions, spanning the whole thing.
+      </p>
+
+      <PickLine
+        qid="ch11-tokenizer-line"
+        question={<>Click the line that is, by itself, the entire tokenizer.</>}
+        lines={[20, 24, 25, 26]}
+        answer={24}
+        hint={<>Shuffling isn&apos;t tokenizing, and BOS bookkeeping comes after. Which line turns raw text into the vocabulary?</>}
+        explanation={
+          <>
+            <code>uchars = sorted(set(&apos;&apos;.join(docs)))</code> — join everything,
+            dedupe, sort. A character&apos;s id is its position in that list; lines 25–26
+            just append BOS and count. Chapter 1, one line.
+          </>
+        }
+      />
+      <NumericGuess
+        qid="ch11-params"
+        question={<>How many learnable parameters does this whole model have?</>}
+        answer={facts.numParams}
+        placeholder="count"
+        format={(v) => v.toLocaleString()}
+        hint={<>Chapter 3&apos;s treemap: 432 + 256 + 432, four 256s, and two 1,024s.</>}
+        explanation={
+          <>
+            <strong>4,192</strong> — wte 432 + wpe 256 + lm_head 432 + four attention
+            matrices at 256 + two MLP matrices at 1,024. You have now personally poked a
+            measurable fraction of them.
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch11-after-backward"
+        question={<>Inside one training step, loss.backward() has just filled all 4,192 grad slots. What runs next?</>}
+        options={['the Adam update — which also zeroes each grad', 'sampling, to check progress', 'a second forward pass to verify the gradients']}
+        answerIndex={0}
+        hint={<>The loop body is only four moves: forward, backward, …, repeat. Nothing in it is optional.</>}
+        explanation={
+          <>
+            Lines 174–182: for every parameter, update m and v, bias-correct, step by
+            −lr_t·m̂/(√v̂+1e-8) — and <code>p.grad = 0</code> right there in the same loop,
+            ready for the next document. Sampling only happens once, after step 1000.
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch11-double-logits"
+        question={<>A mischievous edit doubles every logit just before the sampling softmax. What did you actually change?</>}
+        options={['nothing — softmax normalizes it away', 'it now samples exactly like temperature 0.5', 'names get twice as long']}
+        answerIndex={1}
+        hint={<>Line 195 divides logits by T before softmax. Doubling is dividing by…?</>}
+        explanation={
+          <>
+            softmax(2z) = softmax(z / 0.5): doubling the logits <em>is</em> temperature
+            0.5 — sharper, more conservative sampling. (Chapter 7&apos;s shift-invariance
+            was about <em>adding</em> a constant; <em>multiplying</em> changes the gaps,
+            and softmax is exponential in the gaps.)
+          </>
+        }
+      />
+      <PredictReveal
+        qid="ch11-knowledge"
+        question={<>The trained model &quot;knows&quot; names often end in &apos;a&apos;. Where, physically, is that knowledge?</>}
+        options={['spread across the 4,192 weights', 'in the KV cache', 'in a stored list of training names']}
+        answerIndex={0}
+        hint={<>The KV cache is rebuilt from scratch for every sample, and no list of names survives past line 24. What is the only thing training ever changed?</>}
+        explanation={
+          <>
+            Training changed nothing but the nine matrices — so everything the model knows
+            is encoded there: lm_head&apos;s &apos;a&apos; row aligning with states that
+            follow m-sounds, attention weights that look back at the right letters. The KV
+            cache is scratch paper, discarded after every name.
+          </>
+        }
+      />
+      <NumericGuess
+        qid="ch11-final-loss"
+        question={<>Where does the reference run&apos;s training loss end up after step 1000? (Scrub the inspector&apos;s curve if you don&apos;t remember.)</>}
+        answer={facts.finalLossPython}
+        tolerance={0.05}
+        placeholder="final loss"
+        unit="≈"
+        format={(v) => v.toFixed(2)}
+        hint={<>Between the ln 27 cold start (3.30) and the irreducible-entropy floor (~2.0). The curve in the inspector ends there.</>}
+        explanation={
+          <>
+            <strong>{facts.finalLossPython.toFixed(2)}</strong> — down from 3.30, still far
+            above 0, because names are partly coin flips no model can call. This app&apos;s
+            engine reproduces that number to ~1e-7; you watched the whole descent in
+            chapter 9.
+          </>
+        }
+      />
 
       <h2>Export a name list</h2>
       <Exporter />

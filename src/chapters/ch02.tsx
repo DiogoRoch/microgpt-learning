@@ -6,7 +6,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
-import { PredictReveal, Recap } from '../components/Quiz.tsx'
+import { NumericGuess, PredictReveal, Recap, TryIt } from '../components/Quiz.tsx'
 import { Term } from '../components/Term.tsx'
 import { Aside } from '../components/Aside.tsx'
 import { K } from '../components/Katex.tsx'
@@ -31,11 +31,13 @@ function autoNames(root: V, leaves: Map<string, V>, outName: string): Map<V, str
 
 /** Interactive backward walk over a real graph. */
 function BackwardExplorer({
-  root, names, showGradsFromStart = false,
+  root, names, showGradsFromStart = false, onFinish,
 }: {
   root: V
   names: Map<V, string>
   showGradsFromStart?: boolean
+  /** fires when the walk has been stepped/played all the way to the end */
+  onFinish?: () => void
 }) {
   const topo = useMemo(() => root.topo(), [root])
   const nameOf = useMemo(() => (v: V) => names.get(v) ?? (v.op === 'const' ? String(v.data) : v.op), [names])
@@ -50,7 +52,8 @@ function BackwardExplorer({
 
   useEffect(() => {
     setHighlight(player.index === 0 ? [69] : [70, 71, 72])
-  }, [player.index, setHighlight])
+    if (player.index === plan.captions.length - 1) onFinish?.()
+  }, [player.index, setHighlight, plan.captions.length, onFinish])
 
   return (
     <div className="not-prose my-4 space-y-3">
@@ -148,10 +151,20 @@ function Sandbox() {
 
 const chapter = CHAPTERS[2]!
 
+// x.grad for y = x·x + x at x = 5, computed by the real engine — the answer
+// the NumericGuess below checks against is never hardcoded.
+const GRAD_X5 = (() => {
+  const x = new V(5)
+  const y = x.mul(x).add(x)
+  y.backward()
+  return x.grad
+})()
+
 export default function Ch02() {
   const ex1 = useMemo(exampleMul, [])
   const ex2 = useMemo(exampleChain, [])
   const ex3 = useMemo(exampleShared, [])
+  const [walkDone, setWalkDone] = useState(false)
 
   return (
     <ChapterFrame chapter={chapter}>
@@ -178,6 +191,22 @@ export default function Ch02() {
       </p>
       <BackwardExplorer root={ex1.root} names={ex1.names} />
 
+      <PredictReveal
+        qid="ch2-mul-grad"
+        question={<>c = a·b with a = 2, b = −3. After c.backward(), a.grad is…</>}
+        options={['−3', '2', '−6']}
+        answerIndex={0}
+        hint={<>∂(ab)/∂a doesn&apos;t involve a at all. Which stored local grad belongs to a?</>}
+        explanation={
+          <>
+            ∂(ab)/∂a = b = −3 — the value stored in the node&apos;s local grads the moment
+            it was created (line 45). Increase a slightly and c decreases at 3× the rate:
+            the gradient is a sensitivity, and here it&apos;s negative. Step the walk above
+            and watch exactly this number land in a.
+          </>
+        }
+      />
+
       <h2>backward() is a walk through time, reversed</h2>
       <p>
         <code>backward()</code> (lines 59–72) does exactly two things: it lists every
@@ -187,7 +216,21 @@ export default function Ch02() {
         rule. Step through it on a bigger expression — d = a·b + c², so you can watch
         the grad of c become 2c = 8:
       </p>
-      <BackwardExplorer root={ex2.root} names={ex2.names} />
+      <BackwardExplorer root={ex2.root} names={ex2.names} onFinish={() => setWalkDone(true)} />
+
+      <TryIt
+        qid="ch2-walk"
+        task={<>Walk the whole backward pass: step (or play) the stepper above until every node has its gradient — and watch c&apos;s grad become 2c = 8 on the way.</>}
+        done={walkDone}
+        payoff={
+          <>
+            That&apos;s the entire algorithm behind &quot;the network learns&quot;: one
+            topological sort, then <code>child.grad += local_grad · v.grad</code> at every
+            node, newest to oldest. Chapter 8 runs the <em>identical</em> walk over a graph
+            with ~100,000 nodes — nothing new will be added.
+          </>
+        }
+      />
 
       <Aside kind="math" title="Why child.grad += local · parent.grad is the chain rule">
         <p>
@@ -221,28 +264,12 @@ export default function Ch02() {
         ones flowing through the block, and training would silently break.
       </p>
 
-      <h2>Sandbox: differentiate anything</h2>
-      <p>
-        The parser below builds graphs with this app&apos;s <code>Value</code>-twin —
-        including Python&apos;s desugarings (<code>-x</code> becomes <code>x * -1</code>,{' '}
-        <code>a / b</code> becomes <code>a * b**-1</code>; find them on lines 51–57).
-      </p>
-      <Sandbox />
-
-      <Aside kind="wild" title="PyTorch is this class, industrialized">
-        Swap &quot;one number&quot; for &quot;a tensor of millions of numbers&quot;, the
-        stored local grads for closed-form backward functions per op, and the recursive
-        topo sort for an iterative one, and you have the autograd at the heart of PyTorch
-        and JAX. This app&apos;s fast engine (which trains the model in chapter 9) makes
-        exactly that swap — and is tested to agree with the scalar graph to five decimal
-        places.
-      </Aside>
-
       <PredictReveal
         qid="ch2-shared-grad"
         question={<>After y.backward() on y = x·x + x with x = 3, what is x.grad?</>}
         options={['6', '7', '1']}
         answerIndex={1}
+        hint={<>Count the routes from x to y — the multiply uses x twice, and the add uses it once more. Every route contributes.</>}
         explanation={
           <>
             Three contributions accumulate: the multiply node&apos;s stored local grads are
@@ -252,33 +279,54 @@ export default function Ch02() {
           </>
         }
       />
+
+      <h2>Sandbox: differentiate anything</h2>
+      <p>
+        The parser below builds graphs with this app&apos;s <code>Value</code>-twin —
+        including Python&apos;s desugarings (<code>-x</code> becomes <code>x * -1</code>,{' '}
+        <code>a / b</code> becomes <code>a * b**-1</code>; find them on lines 51–57).
+      </p>
+      <Sandbox />
+
+      <NumericGuess
+        qid="ch2-grad-x5"
+        question={<>Same shape, new number: y = x·x + x at x = 5. Predict x.grad — then check yourself in the sandbox (type <code>x*x + x</code>, set x to 5).</>}
+        answer={GRAD_X5}
+        placeholder="x.grad"
+        hint={<>Two routes through the multiply (each worth x) plus one through the add. Or just: 2x + 1.</>}
+        explanation={
+          <>
+            5 + 5 + 1 = <strong>11</strong> = 2x + 1 — this page ran the real engine on that
+            graph to check your answer. If you verified it in the sandbox, you also watched
+            the three contributions arrive one edge at a time.
+          </>
+        }
+      />
       <PredictReveal
         qid="ch2-relu-dead"
         question={<>relu(-2) stores what local gradient (line 50)?</>}
         options={['0', '1', '-2']}
         answerIndex={0}
+        hint={<>Line 50 stores <code>float(self.data &gt; 0)</code>. What is that for a negative input?</>}
         explanation={
           <>
             <code>float(self.data &gt; 0)</code> → 0.0 for a negative input. Whatever
             gradient arrives at a dead ReLU stops there — nothing flows to its input. In
             the MLP (chapter 6) that means a neuron that stays negative for an input
-            simply doesn&apos;t learn from that example.
+            simply doesn&apos;t learn from that example. Try <code>relu(c)</code> with
+            c = −4 in the sandbox: the edge label is 0.
           </>
         }
       />
-      <PredictReveal
-        qid="ch2-mul-grad"
-        question={<>c = a·b with a = 2, b = −3. After c.backward(), a.grad is…</>}
-        options={['−3', '2', '−6']}
-        answerIndex={0}
-        explanation={
-          <>
-            ∂(ab)/∂a = b = −3 — the value stored in the node&apos;s local grads the moment
-            it was created (line 45). Increase a slightly and c decreases at 3× the rate:
-            the gradient is a sensitivity, and here it&apos;s negative.
-          </>
-        }
-      />
+
+      <Aside kind="wild" title="PyTorch is this class, industrialized">
+        Swap &quot;one number&quot; for &quot;a tensor of millions of numbers&quot;, the
+        stored local grads for closed-form backward functions per op, and the recursive
+        topo sort for an iterative one, and you have the autograd at the heart of PyTorch
+        and JAX. This app&apos;s fast engine (which trains the model in chapter 9) makes
+        exactly that swap — and is tested to agree with the scalar graph to five decimal
+        places.
+      </Aside>
 
       <Recap
         chapterId={2}
