@@ -1,23 +1,13 @@
-import { Suspense, lazy } from 'react'
+import { Suspense, useEffect } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { CHAPTERS, chapterBySlug } from './app/chapters.ts'
+import {
+  Gallery,
+  chapterModules,
+  preloadAllChapters,
+  preloadChapter,
+} from './app/chapterModules.ts'
 import { GIST_URL } from './code/source.ts'
-
-const chapterModules = [
-  lazy(() => import('./chapters/ch00.tsx')),
-  lazy(() => import('./chapters/ch01.tsx')),
-  lazy(() => import('./chapters/ch02.tsx')),
-  lazy(() => import('./chapters/ch03.tsx')),
-  lazy(() => import('./chapters/ch04.tsx')),
-  lazy(() => import('./chapters/ch05.tsx')),
-  lazy(() => import('./chapters/ch06.tsx')),
-  lazy(() => import('./chapters/ch07.tsx')),
-  lazy(() => import('./chapters/ch08.tsx')),
-  lazy(() => import('./chapters/ch09.tsx')),
-  lazy(() => import('./chapters/ch10.tsx')),
-  lazy(() => import('./chapters/ch11.tsx')),
-]
-const Gallery = lazy(() => import('./pages/Gallery.tsx'))
 
 function ChapterRoute() {
   const { slug } = useParams()
@@ -41,6 +31,8 @@ function Header() {
               key={c.id}
               to={c.id === 0 ? '/' : `/ch/${c.slug}`}
               title={c.title}
+              onMouseEnter={() => preloadChapter(c.id)}
+              onFocus={() => preloadChapter(c.id)}
               className="rounded px-1.5 py-0.5 font-mono text-[11px] text-muted hover:bg-ink/5 hover:text-ink focus-visible:outline-2 focus-visible:outline-[var(--hot)]"
             >
               {c.id}
@@ -69,8 +61,20 @@ function Footer() {
 const base = import.meta.env.BASE_URL.replace(/\/$/, '')
 
 export default function App() {
+  // Warm every chapter chunk once the browser is idle, so later navigations
+  // resolve without a Suspense fallback flash.
+  useEffect(() => {
+    const ric = window.requestIdleCallback
+    if (ric) {
+      const handle = ric(() => preloadAllChapters())
+      return () => window.cancelIdleCallback?.(handle)
+    }
+    const handle = window.setTimeout(preloadAllChapters, 300)
+    return () => window.clearTimeout(handle)
+  }, [])
+
   return (
-    <BrowserRouter basename={base}>
+    <BrowserRouter basename={base} future={{ v7_startTransition: true }}>
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-[var(--hot)] focus:px-3 focus:py-1"
