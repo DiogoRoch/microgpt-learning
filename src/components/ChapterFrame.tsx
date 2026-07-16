@@ -12,16 +12,20 @@ import { Minimap } from './Minimap.tsx'
 import { QuizProvider } from './Quiz.tsx'
 
 export function ChapterFrame({
-  chapter, children, hideCodePanel = false,
+  chapter, children, hideCodePanel = false, fullFileCode = false,
 }: {
   chapter: Chapter
   children: ReactNode
   /** chapters that embed code panels inline (e.g. playground) can hide the side panel */
   hideCodePanel?: boolean
+  /** show the whole file in the side panel instead of just this chapter's lines
+   *  (the big-picture page hovers stages across the entire file) */
+  fullFileCode?: boolean
 }) {
   const prev = CHAPTERS[chapter.id - 1]
   const next = CHAPTERS[chapter.id + 1]
   const completed = useAppStore((s) => s.completed)
+  const codeRanges = fullFileCode ? undefined : chapter.lines.length ? chapter.lines : undefined
 
   return (
     <CodeSyncProvider key={chapter.id}>
@@ -49,11 +53,11 @@ export function ChapterFrame({
             {!hideCodePanel && (
               <>
                 <aside className="sticky top-6 hidden xl:block">
-                  <CodePanel ranges={chapter.lines.length ? chapter.lines : undefined} />
+                  <CodePanel ranges={codeRanges} />
                 </aside>
                 {/* below xl the panel follows the article instead of floating beside it */}
                 <div className="mt-10 xl:hidden">
-                  <CodePanel ranges={chapter.lines.length ? chapter.lines : undefined} maxHeight="50vh" />
+                  <CodePanel ranges={codeRanges} maxHeight="50vh" />
                 </div>
               </>
             )}

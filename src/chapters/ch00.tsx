@@ -2,6 +2,7 @@
  * Chapter 0 — The Big Picture. The whole file as a living data-flow map:
  * every stage clickable, every number real (facts.json ← golden run).
  */
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CHAPTERS } from '../app/chapters.ts'
 import { ChapterFrame } from '../components/ChapterFrame.tsx'
@@ -35,37 +36,55 @@ const STAGES: Stage[] = [
 function FlowMap() {
   const navigate = useNavigate()
   const { setHighlight } = useCodeSync()
+  // The last stage pointed at: keeps its card lit and its lines highlighted on
+  // both the left minimap and the right code panel, so the mapping stays legible.
+  const [activeId, setActiveId] = useState<string | null>(null)
+
+  const point = (s: Stage) => {
+    setActiveId(s.id)
+    setHighlight(lineRange(s.lines[0], s.lines[1]))
+  }
+
   return (
     <div className="not-prose">
       <ol className="grid grid-cols-1 gap-2 sm:grid-cols-2" aria-label="the algorithm, stage by stage">
-        {STAGES.map((s, i) => (
-          <li key={s.id} className="flex items-stretch gap-2">
-            <span className="flex w-6 shrink-0 items-center justify-center font-mono text-[10px] text-muted" aria-hidden>
-              {i + 1}
-            </span>
-            <button
-              type="button"
-              onClick={() => navigate(`/ch/${CHAPTERS[s.chapter]!.slug}`)}
-              onMouseEnter={() => setHighlight(lineRange(s.lines[0], s.lines[1]))}
-              onFocus={() => setHighlight(lineRange(s.lines[0], s.lines[1]))}
-              className="group flex-1 rounded-lg border border-ink/15 bg-white/60 px-4 py-3 text-left transition-colors hover:border-ink/40 focus-visible:outline-2 focus-visible:outline-[var(--hot)]"
-            >
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="font-mono text-sm font-semibold">{s.title}</span>
-                <span className="font-mono text-[10px] text-muted group-hover:text-ink">
-                  ch {s.chapter} →
-                </span>
-              </div>
-              <div className="mt-1 font-mono text-[13px]" style={{ color: 'var(--neg)' }}>
-                {s.value}
-              </div>
-              <div className="mt-0.5 text-xs text-muted">{s.detail}</div>
-            </button>
-          </li>
-        ))}
+        {STAGES.map((s, i) => {
+          const active = activeId === s.id
+          return (
+            <li key={s.id} className="flex items-stretch gap-2">
+              <span className="flex w-6 shrink-0 items-center justify-center font-mono text-[10px] text-muted" aria-hidden>
+                {i + 1}
+              </span>
+              <button
+                type="button"
+                onClick={() => navigate(`/ch/${CHAPTERS[s.chapter]!.slug}`)}
+                onMouseEnter={() => point(s)}
+                onFocus={() => point(s)}
+                className="group flex-1 rounded-lg border px-4 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-[var(--hot)]"
+                style={
+                  active
+                    ? { borderColor: 'var(--hot)', background: 'rgba(255,201,77,0.12)' }
+                    : { borderColor: 'rgba(19,19,22,0.15)', background: 'rgba(255,255,255,0.6)' }
+                }
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-mono text-sm font-semibold">{s.title}</span>
+                  <span className="font-mono text-[10px] text-muted group-hover:text-ink">
+                    L{s.lines[0]}–{s.lines[1]} · ch {s.chapter} →
+                  </span>
+                </div>
+                <div className="mt-1 font-mono text-[13px]" style={{ color: 'var(--neg)' }}>
+                  {s.value}
+                </div>
+                <div className="mt-0.5 text-xs text-muted">{s.detail}</div>
+              </button>
+            </li>
+          )
+        })}
       </ol>
       <p className="mt-3 font-mono text-xs text-muted">
-        hover a stage to see its lines in the file · click to jump to its chapter
+        hover a stage to trace it through the file — its lines light up on the map at left and
+        in the panel at right · click to open its chapter
       </p>
     </div>
   )
@@ -75,7 +94,7 @@ const chapter = CHAPTERS[0]!
 
 export default function Ch00() {
   return (
-    <ChapterFrame chapter={chapter}>
+    <ChapterFrame chapter={chapter} fullFileCode>
       <p>
         The file on the right is a <em>complete</em> GPT — the same architecture family as the
         chatbots, shrunk to its irreducible core. It downloads a list of names, learns

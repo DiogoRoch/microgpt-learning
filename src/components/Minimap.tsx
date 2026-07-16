@@ -10,12 +10,17 @@ import { CHAPTERS, TOTAL_LINES, lineOwners } from '../app/chapters.ts'
 import { preloadChapter } from '../app/chapterModules.ts'
 import { useAppStore } from '../app/store.ts'
 import { SOURCE_LINES } from '../code/source.ts'
+import { useCodeSync } from './CodeSync.tsx'
 
 export function Minimap({ currentChapter }: { currentChapter: number }) {
   const completed = useAppStore((s) => s.completed)
   const navigate = useNavigate()
   const [hoverLine, setHoverLine] = useState<number | null>(null)
   const owners = useMemo(() => lineOwners(), [])
+  // Lines any interactive element is currently pointing at (e.g. a stage card
+  // on the landing page). The minimap IS the code map, so it lights them up too.
+  const { highlight } = useCodeSync()
+  const highlightSet = useMemo(() => new Set(highlight), [highlight])
 
   const H = 3 // px per line
   const W = 36
@@ -23,6 +28,8 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
 
   const hoverOwner = hoverLine != null ? owners[hoverLine]! : -1
   const hoverChapter = hoverOwner >= 0 ? CHAPTERS[hoverOwner] : null
+  const hiMin = highlight.length ? Math.min(...highlight) : null
+  const hiMax = highlight.length ? Math.max(...highlight) : null
 
   return (
     <nav aria-label="microgpt.py minimap navigation" className="sticky top-6 hidden lg:block">
@@ -57,12 +64,25 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
               />
             )
           })}
+        {/* highlight band: the exact lines something is pointing at right now */}
+        {highlight.map((lineNo) => (
+          <rect
+            key={`hi-${lineNo}`}
+            x={0}
+            y={(lineNo - 1) * H}
+            width={W}
+            height={H}
+            fill="var(--hot)"
+            fillOpacity={0.22}
+          />
+        ))}
         {SOURCE_LINES.map((line, i) => {
           const lineNo = i + 1
           const owner = owners[lineNo]!
           const isDone = owner >= 0 && completed.includes(owner)
           const isCurrent = owner === currentChapter
           const isHovered = owner >= 0 && owner === hoverOwner
+          const isHighlighted = highlightSet.has(lineNo)
           const indent = line.length - line.trimStart().length
           const len = Math.min(line.trim().length, 60)
           if (len === 0) return null
@@ -75,15 +95,17 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
               height={H - 1.2}
               rx={0.6}
               fill={
-                isDone
-                  ? 'var(--hot)'
-                  : isCurrent
-                    ? isHovered
-                      ? 'rgba(255,201,77,0.8)'
-                      : 'rgba(255,201,77,0.45)'
-                    : isHovered
-                      ? 'rgba(255,255,255,0.6)'
-                      : 'rgba(255,255,255,0.22)'
+                isHighlighted
+                  ? 'rgba(255,255,255,0.95)'
+                  : isDone
+                    ? 'var(--hot)'
+                    : isCurrent
+                      ? isHovered
+                        ? 'rgba(255,201,77,0.8)'
+                        : 'rgba(255,201,77,0.45)'
+                      : isHovered
+                        ? 'rgba(255,255,255,0.6)'
+                        : 'rgba(255,255,255,0.22)'
               }
               style={{ transition: 'fill 120ms ease' }}
             />
@@ -119,6 +141,10 @@ export function Minimap({ currentChapter }: { currentChapter: number }) {
         {hoverChapter ? (
           <>
             L{hoverLine}: {hoverChapter.short}
+          </>
+        ) : hiMin != null ? (
+          <>
+            lines {hiMin === hiMax ? hiMin : `${hiMin}–${hiMax}`}
           </>
         ) : (
           `${completed.length}/12`
